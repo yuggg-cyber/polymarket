@@ -9,6 +9,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Globe,
 } from 'lucide-react'
 import type { WalletData, Position, SortField, SortDirection } from '@/types'
 
@@ -275,8 +276,8 @@ export function ResultsTable({ results }: ResultsTableProps) {
           )}
         </td>
 
-        {/* 地址 */}
-        <td className="px-3 py-3">
+        {/* 地址 + 代理 IP */}
+        <td className="px-3 py-3 min-w-[200px]">
           <div className="flex items-center gap-1.5">
             {(wallet.status === 'loading' || wallet.status === 'pending') && (
               <Loader2 className="w-4 h-4 animate-spin text-blue-500 flex-shrink-0" />
@@ -304,6 +305,13 @@ export function ResultsTable({ results }: ResultsTableProps) {
               <ExternalLink className="w-3.5 h-3.5 text-gray-400" />
             </a>
           </div>
+          {/* 代理出口 IP 显示在地址下方 */}
+          {wallet.proxyIp && wallet.status === 'success' && (
+            <div className="flex items-center gap-1 mt-1">
+              <Globe className="w-3 h-3 text-blue-400 flex-shrink-0" />
+              <span className="text-xs text-blue-500 font-mono">{wallet.proxyIp}</span>
+            </div>
+          )}
         </td>
 
         {/* 数据列 */}

@@ -4,12 +4,12 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "functions": {
-    "api/query.js": {
+    "api/query.cjs": {
       "maxDuration": 30
     }
   },
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/api/query", "destination": "/api/query.cjs" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "headers": [

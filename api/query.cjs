@@ -2,12 +2,12 @@
 // POST /api/query
 // Body: { address, proxyHost, proxyPort, proxyUser, proxyPass }
 
-import http from 'node:http'
-import https from 'node:https'
-import { URL } from 'node:url'
+const http = require('node:http')
+const https = require('node:https')
+const { URL } = require('node:url')
 
 // ============================================================
-// 通过 HTTP CONNECT 代理发起 HTTPS 请求
+// 通过 HTTP CONNECT 代理发起 HTTPS GET 请求
 // ============================================================
 
 function httpsViaProxy(targetUrl, proxyHost, proxyPort, proxyUser, proxyPass, timeout = 12000) {
@@ -58,7 +58,7 @@ function httpsViaProxy(targetUrl, proxyHost, proxyPort, proxyUser, proxyPass, ti
   })
 }
 
-// 通过代理发起 JSON-RPC POST 请求（用于 Polygon RPC）
+// 通过 HTTP CONNECT 代理发起 HTTPS POST 请求（用于 Polygon RPC）
 function httpsPostViaProxy(targetUrl, postBody, proxyHost, proxyPort, proxyUser, proxyPass, timeout = 12000) {
   return new Promise((resolve, reject) => {
     const url = new URL(targetUrl)
@@ -185,18 +185,36 @@ const POLYGON_RPCS = [
   'https://1rpc.io/matic',
 ]
 
-async function fetchGet(url, proxy) {
+function fetchGet(url, proxy) {
   if (proxy) {
-    return await httpsViaProxy(url, proxy.host, proxy.port, proxy.user, proxy.pass)
+    return httpsViaProxy(url, proxy.host, proxy.port, proxy.user, proxy.pass)
   }
-  return await directFetch(url)
+  return directFetch(url)
 }
 
-async function fetchPost(url, body, proxy) {
+function fetchPost(url, body, proxy) {
   if (proxy) {
-    return await httpsPostViaProxy(url, body, proxy.host, proxy.port, proxy.user, proxy.pass)
+    return httpsPostViaProxy(url, body, proxy.host, proxy.port, proxy.user, proxy.pass)
   }
-  return await directPost(url, body)
+  return directPost(url, body)
+}
+
+// 通过代理获取出口 IP
+async function getProxyIP(proxy) {
+  try {
+    const raw = await httpsViaProxy('https://httpbin.org/ip', proxy.host, proxy.port, proxy.user, proxy.pass, 8000)
+    const data = JSON.parse(raw)
+    return data?.origin || null
+  } catch {
+    // fallback: 尝试另一个 IP 检测服务
+    try {
+      const raw = await httpsViaProxy('https://api.ipify.org?format=json', proxy.host, proxy.port, proxy.user, proxy.pass, 8000)
+      const data = JSON.parse(raw)
+      return data?.ip || null
+    } catch {
+      return null
+    }
+  }
 }
 
 async function getVolume(wallet, proxy) {
@@ -303,7 +321,7 @@ async function getPositions(wallet, proxy) {
 // Main handler
 // ============================================================
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
@@ -331,17 +349,26 @@ export default async function handler(req, res) {
       ? { host: proxyHost, port: proxyPort, user: proxyUser, pass: proxyPass }
       : null
 
-    // 并行获取所有数据
-    const [volume, profit, marketsTraded, portfolioValue, activityStats, availableBalance, openPositions] =
-      await Promise.all([
-        getVolume(wallet, proxy),
-        getProfit(wallet, proxy),
-        getMarketsTraded(wallet, proxy),
-        getPortfolioValue(wallet, proxy),
-        getActivityStats(wallet, proxy),
-        getUSDCBalance(wallet, proxy),
-        getPositions(wallet, proxy),
-      ])
+    // 并行获取所有数据 + 代理出口 IP
+    const tasks = [
+      getVolume(wallet, proxy),
+      getProfit(wallet, proxy),
+      getMarketsTraded(wallet, proxy),
+      getPortfolioValue(wallet, proxy),
+      getActivityStats(wallet, proxy),
+      getUSDCBalance(wallet, proxy),
+      getPositions(wallet, proxy),
+    ]
+
+    // 如果使用代理，同时获取出口 IP
+    if (proxy) {
+      tasks.push(getProxyIP(proxy))
+    }
+
+    const results = await Promise.all(tasks)
+
+    const [volume, profit, marketsTraded, portfolioValue, activityStats, availableBalance, openPositions] = results
+    const proxyIp = proxy ? (results[7] || null) : null
 
     const netWorth = availableBalance + portfolioValue
 
@@ -375,6 +402,7 @@ export default async function handler(req, res) {
       activeDays: activityStats.days,
       activeMonths: activityStats.months,
       positions,
+      proxyIp,
       status: 'success',
     })
   } catch (error) {

@@ -40,6 +40,8 @@ export interface WalletData {
   activeMonths: number
   /** 当前持仓列表 */
   positions: Position[]
+  /** 代理出口 IP（代理模式下返回） */
+  proxyIp?: string | null
   /** 查询状态 */
   status: 'pending' | 'loading' | 'success' | 'error'
   errorMessage?: string

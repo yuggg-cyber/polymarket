@@ -1,4 +1,4 @@
-import type { WalletData, Position } from '@/types'
+import type { WalletData, Position, ProxyConfig } from '@/types'
 
 const DATA_API = 'https://data-api.polymarket.com'
 const LB_API = 'https://lb-api.polymarket.com'
@@ -66,7 +66,20 @@ interface PositionItem {
 }
 
 // ============================================================
-// HTTP helpers
+// 生成随机 session ID（用于动态代理）
+// ============================================================
+
+function randomSessionId(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let result = ''
+  for (let i = 0; i < 10; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return result
+}
+
+// ============================================================
+// HTTP helpers（直连模式）
 // ============================================================
 
 const FETCH_TIMEOUT = 5000
@@ -105,7 +118,7 @@ async function fetchJSON<T>(url: string, retries = 2): Promise<T> {
 }
 
 // ============================================================
-// Polygon RPC: USDC.e 余额查询（带多节点 fallback）
+// Polygon RPC: USDC.e 余额查询（直连模式）
 // ============================================================
 
 async function rpcEthCall(
@@ -151,7 +164,6 @@ async function getUSDCBalance(wallet: string): Promise<number> {
     const hex = await rpcEthCall(payload)
     if (!hex) return 0
     const raw = hex === '0x' ? 0n : BigInt(hex)
-    // 精确到 2 位小数
     const scale = 10n ** BigInt(USDC_DECIMALS)
     const valueTimes100 = (raw * 100n) / scale
     const whole = Number(valueTimes100 / 100n)
@@ -163,10 +175,9 @@ async function getUSDCBalance(wallet: string): Promise<number> {
 }
 
 // ============================================================
-// Data fetching functions (与参考网站一致的 API)
+// 直连模式：Data fetching functions
 // ============================================================
 
-/** 获取交易额（来自排行榜 API） */
 async function getVolume(wallet: string): Promise<number> {
   try {
     const data = await fetchJSON<LeaderboardEntry[]>(
@@ -178,7 +189,6 @@ async function getVolume(wallet: string): Promise<number> {
   }
 }
 
-/** 获取盈亏（来自排行榜 API） */
 async function getProfit(wallet: string): Promise<number> {
   try {
     const data = await fetchJSON<LeaderboardEntry[]>(
@@ -190,7 +200,6 @@ async function getProfit(wallet: string): Promise<number> {
   }
 }
 
-/** 获取池子数（参与的市场数量） */
 async function getMarketsTraded(wallet: string): Promise<number> {
   try {
     const data = await fetchJSON<TradedResponse>(
@@ -202,7 +211,6 @@ async function getMarketsTraded(wallet: string): Promise<number> {
   }
 }
 
-/** 获取持仓估值 */
 async function getPortfolioValue(wallet: string): Promise<number> {
   try {
     const data = await fetchJSON<ValueResponse[]>(
@@ -214,7 +222,6 @@ async function getPortfolioValue(wallet: string): Promise<number> {
   }
 }
 
-/** 获取活跃度数据（分页遍历 activity） */
 async function getActivityStats(
   wallet: string
 ): Promise<{ days: number; months: number; lastGap: number | null }> {
@@ -265,7 +272,6 @@ async function getActivityStats(
   }
 }
 
-/** 获取当前持仓列表 */
 async function getPositions(wallet: string): Promise<PositionItem[]> {
   try {
     return await fetchJSON<PositionItem[]>(
@@ -277,61 +283,125 @@ async function getPositions(wallet: string): Promise<PositionItem[]> {
 }
 
 // ============================================================
-// Main export: fetch all data for a wallet
+// 直连模式：获取钱包数据
 // ============================================================
 
-export async function fetchWalletData(address: string): Promise<WalletData> {
+async function fetchWalletDataDirect(address: string): Promise<WalletData> {
+  const wallet = address.toLowerCase()
+
+  const [volume, profit, marketsTraded, portfolioValue, activityStats, availableBalance, openPositions] =
+    await Promise.all([
+      getVolume(wallet),
+      getProfit(wallet),
+      getMarketsTraded(wallet),
+      getPortfolioValue(wallet),
+      getActivityStats(wallet),
+      getUSDCBalance(wallet),
+      getPositions(wallet),
+    ])
+
+  const netWorth = availableBalance + portfolioValue
+
+  const positions: Position[] = openPositions.map((p) => ({
+    title: p.title,
+    slug: p.slug,
+    icon: p.icon,
+    outcome: p.outcome,
+    size: p.size,
+    avgPrice: p.avgPrice,
+    currentValue: p.currentValue,
+    curPrice: p.curPrice,
+    cashPnl: p.cashPnl,
+    percentPnl: p.percentPnl,
+    totalBought: p.totalBought,
+    realizedPnl: p.realizedPnl,
+    redeemable: p.redeemable,
+    mergeable: p.mergeable,
+    endDate: p.endDate,
+  }))
+
+  return {
+    address,
+    profit,
+    availableBalance,
+    portfolioValue,
+    netWorth,
+    totalVolume: volume,
+    marketsTraded,
+    lastActiveDay: activityStats.lastGap,
+    activeDays: activityStats.days,
+    activeMonths: activityStats.months,
+    positions,
+    status: 'success',
+  }
+}
+
+// ============================================================
+// 代理模式：通过 Vercel Serverless Function 查询
+// ============================================================
+
+async function fetchWalletDataViaProxy(
+  address: string,
+  proxy: ProxyConfig
+): Promise<WalletData> {
+  const sessionId = randomSessionId()
+  const proxyUser = `${proxy.userPrefix}_session-${sessionId}`
+
+  const apiUrl = `${proxy.apiBase.replace(/\/$/, '')}/api/query`
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 60000) // 60s 超时
+
   try {
-    const wallet = address.toLowerCase()
+    const res = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        address: address.toLowerCase(),
+        proxyHost: proxy.host,
+        proxyPort: proxy.port,
+        proxyUser,
+        proxyPass: proxy.password,
+      }),
+    })
 
-    // 并行获取所有数据（与参考网站一致）
-    const [volume, profit, marketsTraded, portfolioValue, activityStats, availableBalance, openPositions] =
-      await Promise.all([
-        getVolume(wallet),
-        getProfit(wallet),
-        getMarketsTraded(wallet),
-        getPortfolioValue(wallet),
-        getActivityStats(wallet),
-        getUSDCBalance(wallet),
-        getPositions(wallet),
-      ])
+    clearTimeout(timer)
 
-    // 净资产 = 可用余额 + 持仓估值
-    const netWorth = availableBalance + portfolioValue
+    if (!res.ok) {
+      const errBody = await res.text()
+      throw new Error(`API 返回 ${res.status}: ${errBody}`)
+    }
 
-    // 持仓列表
-    const positions: Position[] = openPositions.map((p) => ({
-      title: p.title,
-      slug: p.slug,
-      icon: p.icon,
-      outcome: p.outcome,
-      size: p.size,
-      avgPrice: p.avgPrice,
-      currentValue: p.currentValue,
-      curPrice: p.curPrice,
-      cashPnl: p.cashPnl,
-      percentPnl: p.percentPnl,
-      totalBought: p.totalBought,
-      realizedPnl: p.realizedPnl,
-      redeemable: p.redeemable,
-      mergeable: p.mergeable,
-      endDate: p.endDate,
-    }))
+    const data = await res.json()
+
+    if (data.error) {
+      throw new Error(data.error)
+    }
 
     return {
-      address,
-      profit,
-      availableBalance,
-      portfolioValue,
-      netWorth,
-      totalVolume: volume,
-      marketsTraded,
-      lastActiveDay: activityStats.lastGap,
-      activeDays: activityStats.days,
-      activeMonths: activityStats.months,
-      positions,
+      ...data,
       status: 'success',
+    } as WalletData
+  } catch (error) {
+    clearTimeout(timer)
+    throw error
+  }
+}
+
+// ============================================================
+// Main export: 根据代理配置选择模式
+// ============================================================
+
+export async function fetchWalletData(
+  address: string,
+  proxyConfig?: ProxyConfig
+): Promise<WalletData> {
+  try {
+    if (proxyConfig?.enabled && proxyConfig.host && proxyConfig.apiBase) {
+      return await fetchWalletDataViaProxy(address, proxyConfig)
     }
+    return await fetchWalletDataDirect(address)
   } catch (error) {
     return {
       address,

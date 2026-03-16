@@ -1,9 +1,18 @@
 import { useState, useCallback } from 'react'
-import type { WalletData, QueryProgress } from '@/types'
+import type { WalletData, QueryProgress, ProxyConfig } from '@/types'
 import { fetchWalletData } from '@/services/polymarket'
 import { createQueue } from '@/services/queue'
 import { SearchSection } from '@/components/SearchSection'
 import { ResultsTable } from '@/components/ResultsTable'
+
+const DEFAULT_PROXY: ProxyConfig = {
+  enabled: false,
+  host: '',
+  port: '',
+  userPrefix: '',
+  password: '',
+  apiBase: '',
+}
 
 function App() {
   const [results, setResults] = useState<WalletData[]>([])
@@ -12,6 +21,20 @@ function App() {
     completed: 0,
     isLoading: false,
   })
+  const [proxyConfig, setProxyConfig] = useState<ProxyConfig>(() => {
+    try {
+      const saved = localStorage.getItem('polymarket_proxy')
+      if (saved) return JSON.parse(saved)
+    } catch { /* ignore */ }
+    return DEFAULT_PROXY
+  })
+
+  const handleProxyChange = useCallback((config: ProxyConfig) => {
+    setProxyConfig(config)
+    try {
+      localStorage.setItem('polymarket_proxy', JSON.stringify(config))
+    } catch { /* ignore */ }
+  }, [])
 
   const handleQuery = useCallback(async (addresses: string[]) => {
     setResults([])
@@ -34,13 +57,17 @@ function App() {
     }))
     setResults(initialResults)
 
-    // 使用并发队列（最大并发 3）
-    const queue = createQueue(3)
+    // 使用并发队列（代理模式并发 5，直连模式并发 3）
+    const concurrency = proxyConfig.enabled ? 5 : 3
+    const queue = createQueue(concurrency)
     let completed = 0
 
     const tasks = addresses.map((addr) =>
       queue.add(async () => {
-        const data = await fetchWalletData(addr)
+        const data = await fetchWalletData(
+          addr,
+          proxyConfig.enabled ? proxyConfig : undefined
+        )
         completed++
         setProgress((prev) => ({ ...prev, completed }))
         setResults((prev) =>
@@ -52,7 +79,7 @@ function App() {
 
     await Promise.allSettled(tasks)
     setProgress((prev) => ({ ...prev, isLoading: false }))
-  }, [])
+  }, [proxyConfig])
 
   return (
     <div className="min-h-screen bg-[#f8f9fa]">
@@ -87,7 +114,12 @@ function App() {
 
       {/* 主内容区 */}
       <main className="max-w-[1400px] mx-auto px-6 py-8">
-        <SearchSection onQuery={handleQuery} progress={progress} />
+        <SearchSection
+          onQuery={handleQuery}
+          progress={progress}
+          proxyConfig={proxyConfig}
+          onProxyChange={handleProxyChange}
+        />
 
         {results.length > 0 && (
           <div className="mt-8">

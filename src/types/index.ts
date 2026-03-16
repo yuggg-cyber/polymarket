@@ -63,3 +63,19 @@ export interface QueryProgress {
   completed: number
   isLoading: boolean
 }
+
+/** 代理配置 */
+export interface ProxyConfig {
+  /** 是否启用代理 */
+  enabled: boolean
+  /** 代理主机 */
+  host: string
+  /** 代理端口 */
+  port: string
+  /** 用户名前缀（不含 session 部分） */
+  userPrefix: string
+  /** 密码 */
+  password: string
+  /** API 服务地址（Vercel 部署后的域名） */
+  apiBase: string
+}

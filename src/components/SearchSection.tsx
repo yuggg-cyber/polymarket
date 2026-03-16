@@ -335,7 +335,7 @@ export function SearchSection({ onQuery, progress, proxyConfig, onProxyChange }:
                     API 服务地址（Vercel 部署后的域名）
                   </label>
                   <Input
-                    placeholder="https://your-project.vercel.app"
+                    placeholder="your-project.vercel.app"
                     value={proxyConfig.apiBase}
                     onChange={(e) => onProxyChange({ ...proxyConfig, apiBase: e.target.value })}
                     className="h-10 text-sm bg-gray-50 border-gray-200"

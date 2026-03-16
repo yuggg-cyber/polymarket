@@ -347,7 +347,12 @@ async function fetchWalletDataViaProxy(
   const sessionId = randomSessionId()
   const proxyUser = `${proxy.userPrefix}_session-${sessionId}`
 
-  const apiUrl = `${proxy.apiBase.replace(/\/$/, '')}/api/query`
+  // 自动补全协议前缀，防止用户输入时遗漏 https://
+  let base = proxy.apiBase.replace(/\/+$/, '')
+  if (!/^https?:\/\//i.test(base)) {
+    base = `https://${base}`
+  }
+  const apiUrl = `${base}/api/query`
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 60000) // 60s 超时

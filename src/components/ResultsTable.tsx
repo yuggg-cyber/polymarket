@@ -408,15 +408,15 @@ export function ResultsTable({
           </td>
         ) : (
           <>
-            <td className="px-3 py-3 text-right font-mono text-sm text-gray-800 font-semibold">{formatUSD(wallet.netWorth)}</td>
-            <td className={`px-3 py-3 text-right font-mono text-sm ${pnl.className}`}>{pnl.text}</td>
-            <td className="px-3 py-3 text-right font-mono text-sm text-gray-700">{formatUSD(wallet.availableBalance)}</td>
-            <td className="px-3 py-3 text-right font-mono text-sm text-gray-700">{formatUSD(wallet.portfolioValue)}</td>
-            <td className="px-3 py-3 text-right font-mono text-sm text-gray-700">{formatUSD(wallet.totalVolume)}</td>
-            <td className="px-3 py-3 text-right font-mono text-sm text-gray-700">{wallet.marketsTraded}</td>
-            <td className="px-3 py-3 text-right text-sm text-gray-600">{wallet.lastActiveDay !== null ? `${wallet.lastActiveDay}天前` : '-'}</td>
-            <td className="px-3 py-3 text-right font-mono text-sm text-gray-700">{wallet.activeDays}</td>
-            <td className="px-3 py-3 text-right font-mono text-sm text-gray-700">{wallet.activeMonths}</td>
+            <td className="px-3 py-3 text-center font-mono text-sm text-gray-800 font-semibold">{formatUSD(wallet.netWorth)}</td>
+            <td className={`px-3 py-3 text-center font-mono text-sm ${pnl.className}`}>{pnl.text}</td>
+            <td className="px-3 py-3 text-center font-mono text-sm text-gray-700">{formatUSD(wallet.availableBalance)}</td>
+            <td className="px-3 py-3 text-center font-mono text-sm text-gray-700">{formatUSD(wallet.portfolioValue)}</td>
+            <td className="px-3 py-3 text-center font-mono text-sm text-gray-700">{formatUSD(wallet.totalVolume)}</td>
+            <td className="px-3 py-3 text-center font-mono text-sm text-gray-700">{wallet.marketsTraded}</td>
+            <td className="px-3 py-3 text-center text-sm text-gray-600">{wallet.lastActiveDay !== null ? `${wallet.lastActiveDay}天前` : '-'}</td>
+            <td className="px-3 py-3 text-center font-mono text-sm text-gray-700">{wallet.activeDays}</td>
+            <td className="px-3 py-3 text-center font-mono text-sm text-gray-700">{wallet.activeMonths}</td>
           </>
         )}
       </tr>
@@ -488,10 +488,10 @@ export function ResultsTable({
                   地址
                 </th>
                 {SORT_COLS.map(({ field, label, tip }) => (
-                  <th key={field} className="px-3 py-3 text-right whitespace-nowrap">
+                  <th key={field} className="px-3 py-3 text-center whitespace-nowrap">
                     <button
                       onClick={() => handleSort(field)}
-                      className="inline-flex items-center justify-end hover:text-gray-900 transition-colors text-sm font-semibold text-gray-600"
+                      className="inline-flex items-center justify-center hover:text-gray-900 transition-colors text-sm font-semibold text-gray-600"
                       title={tip}
                     >
                       {label}

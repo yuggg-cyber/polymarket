@@ -256,8 +256,10 @@ async function getActivityStats(wallet, proxy) {
     const monthsSet = new Set()
     let offset = 0
     let latestTs = null
+    const MAX_PAGES = 10
+    let pageCount = 0
 
-    while (true) {
+    while (pageCount < MAX_PAGES) {
       let raw
       try {
         raw = await fetchGet(`${DATA_API}/activity?user=${wallet}&limit=${PAGE}&offset=${offset}`, proxy)
@@ -277,6 +279,7 @@ async function getActivityStats(wallet, proxy) {
 
       if (batch.length < PAGE) break
       offset += PAGE
+      pageCount++
     }
 
     if (latestTs === null) return { days: 0, months: 0, lastGap: null }

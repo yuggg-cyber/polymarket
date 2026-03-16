@@ -206,7 +206,6 @@ async function getProxyIP(proxy) {
     const data = JSON.parse(raw)
     return data?.origin || null
   } catch (_e) {
-    // fallback: 尝试另一个 IP 检测服务
     try {
       const raw = await httpsViaProxy('https://api.ipify.org?format=json', proxy.host, proxy.port, proxy.user, proxy.pass, 8000)
       const data = JSON.parse(raw)
@@ -217,77 +216,64 @@ async function getProxyIP(proxy) {
   }
 }
 
+// 以下函数不再 catch，让异常冒泡以便追踪失败
+
 async function getVolume(wallet, proxy) {
-  try {
-    const raw = await fetchGet(`${LB_API}/volume?window=all&limit=1&address=${wallet}`, proxy)
-    const data = JSON.parse(raw)
-    return data?.[0]?.amount ?? 0
-  } catch (_e) { return 0 }
+  const raw = await fetchGet(`${LB_API}/volume?window=all&limit=1&address=${wallet}`, proxy)
+  const data = JSON.parse(raw)
+  return data?.[0]?.amount ?? 0
 }
 
 async function getProfit(wallet, proxy) {
-  try {
-    const raw = await fetchGet(`${LB_API}/profit?window=all&limit=1&address=${wallet}`, proxy)
-    const data = JSON.parse(raw)
-    return data?.[0]?.amount ?? 0
-  } catch (_e) { return 0 }
+  const raw = await fetchGet(`${LB_API}/profit?window=all&limit=1&address=${wallet}`, proxy)
+  const data = JSON.parse(raw)
+  return data?.[0]?.amount ?? 0
 }
 
 async function getMarketsTraded(wallet, proxy) {
-  try {
-    const raw = await fetchGet(`${DATA_API}/traded?user=${wallet}`, proxy)
-    const data = JSON.parse(raw)
-    return data?.traded ?? 0
-  } catch (_e) { return 0 }
+  const raw = await fetchGet(`${DATA_API}/traded?user=${wallet}`, proxy)
+  const data = JSON.parse(raw)
+  return data?.traded ?? 0
 }
 
 async function getPortfolioValue(wallet, proxy) {
-  try {
-    const raw = await fetchGet(`${DATA_API}/value?user=${wallet}`, proxy)
-    const data = JSON.parse(raw)
-    return Array.isArray(data) ? (data[0]?.value ?? 0) : 0
-  } catch (_e) { return 0 }
+  const raw = await fetchGet(`${DATA_API}/value?user=${wallet}`, proxy)
+  const data = JSON.parse(raw)
+  return Array.isArray(data) ? (data[0]?.value ?? 0) : 0
 }
 
 async function getActivityStats(wallet, proxy) {
-  try {
-    const PAGE = 1000
-    const daysSet = new Set()
-    const monthsSet = new Set()
-    let offset = 0
-    let latestTs = null
-    const MAX_PAGES = 10
-    let pageCount = 0
+  const PAGE = 1000
+  const daysSet = new Set()
+  const monthsSet = new Set()
+  let offset = 0
+  let latestTs = null
+  const MAX_PAGES = 10
+  let pageCount = 0
 
-    while (pageCount < MAX_PAGES) {
-      let raw
-      try {
-        raw = await fetchGet(`${DATA_API}/activity?user=${wallet}&limit=${PAGE}&offset=${offset}`, proxy)
-      } catch (_e) { break }
-      const batch = JSON.parse(raw)
-      if (!Array.isArray(batch) || batch.length === 0) break
+  while (pageCount < MAX_PAGES) {
+    const raw = await fetchGet(`${DATA_API}/activity?user=${wallet}&limit=${PAGE}&offset=${offset}`, proxy)
+    const batch = JSON.parse(raw)
+    if (!Array.isArray(batch) || batch.length === 0) break
 
-      for (const item of batch) {
-        const date = new Date(item.timestamp * 1000)
-        const y = date.getFullYear()
-        const mo = date.getMonth() + 1
-        const day = date.getDate()
-        daysSet.add(y * 10000 + mo * 100 + day)
-        monthsSet.add(y * 100 + mo)
-        if (latestTs === null || item.timestamp > latestTs) latestTs = item.timestamp
-      }
-
-      if (batch.length < PAGE) break
-      offset += PAGE
-      pageCount++
+    for (const item of batch) {
+      const date = new Date(item.timestamp * 1000)
+      const y = date.getFullYear()
+      const mo = date.getMonth() + 1
+      const day = date.getDate()
+      daysSet.add(y * 10000 + mo * 100 + day)
+      monthsSet.add(y * 100 + mo)
+      if (latestTs === null || item.timestamp > latestTs) latestTs = item.timestamp
     }
 
-    if (latestTs === null) return { days: 0, months: 0, lastGap: null }
-    const gap = Math.floor((Date.now() - latestTs * 1000) / (24 * 60 * 60 * 1000))
-    return { days: daysSet.size, months: monthsSet.size, lastGap: gap }
-  } catch (_e) {
-    return { days: 0, months: 0, lastGap: null }
+    if (batch.length < PAGE) break
+    offset += PAGE
+    pageCount++
   }
+
+  if (latestTs === null) return { days: 0, months: 0, lastGap: null }
+  const gap = Math.floor((Date.now() - latestTs * 1000) / (24 * 60 * 60 * 1000))
+  return { days: daysSet.size, months: monthsSet.size, lastGap: gap }
 }
 
 async function getUSDCBalance(wallet, proxy) {
@@ -310,14 +296,25 @@ async function getUSDCBalance(wallet, proxy) {
       }
     } catch (_e) { /* try next RPC */ }
   }
-  return 0
+  throw new Error('All RPC endpoints failed')
 }
 
 async function getPositions(wallet, proxy) {
+  const raw = await fetchGet(`${DATA_API}/positions?user=${wallet}&sizeThreshold=0`, proxy)
+  return JSON.parse(raw)
+}
+
+// ============================================================
+// 子请求包装：追踪成功/失败
+// ============================================================
+
+async function wrapSub(fieldName, fn) {
   try {
-    const raw = await fetchGet(`${DATA_API}/positions?user=${wallet}&sizeThreshold=0`, proxy)
-    return JSON.parse(raw)
-  } catch (_e) { return [] }
+    const value = await fn()
+    return { ok: true, value }
+  } catch (_e) {
+    return { ok: false, field: fieldName }
+  }
 }
 
 // ============================================================
@@ -352,26 +349,42 @@ export default async function handler(req, res) {
       ? { host: proxyHost, port: proxyPort, user: proxyUser, pass: proxyPass }
       : null
 
-    // 并行获取所有数据 + 代理出口 IP
-    const tasks = [
-      getVolume(wallet, proxy),
-      getProfit(wallet, proxy),
-      getMarketsTraded(wallet, proxy),
-      getPortfolioValue(wallet, proxy),
-      getActivityStats(wallet, proxy),
-      getUSDCBalance(wallet, proxy),
-      getPositions(wallet, proxy),
-    ]
+    // 并行获取所有数据，每个子请求独立追踪成功/失败
+    const [
+      volumeResult,
+      profitResult,
+      marketsTradedResult,
+      portfolioValueResult,
+      activityResult,
+      balanceResult,
+      positionsResult,
+      proxyIpResult,
+    ] = await Promise.all([
+      wrapSub('交易额', () => getVolume(wallet, proxy)),
+      wrapSub('盈亏', () => getProfit(wallet, proxy)),
+      wrapSub('池子数', () => getMarketsTraded(wallet, proxy)),
+      wrapSub('持仓估值', () => getPortfolioValue(wallet, proxy)),
+      wrapSub('活跃度', () => getActivityStats(wallet, proxy)),
+      wrapSub('可用余额', () => getUSDCBalance(wallet, proxy)),
+      wrapSub('持仓列表', () => getPositions(wallet, proxy)),
+      proxy ? wrapSub('代理IP', () => getProxyIP(proxy)) : Promise.resolve({ ok: true, value: null }),
+    ])
 
-    // 如果使用代理，同时获取出口 IP
-    if (proxy) {
-      tasks.push(getProxyIP(proxy))
+    // 收集失败的字段
+    const failedFields = []
+    const dataResults = [volumeResult, profitResult, marketsTradedResult, portfolioValueResult, activityResult, balanceResult, positionsResult]
+    for (const r of dataResults) {
+      if (!r.ok) failedFields.push(r.field)
     }
 
-    const results = await Promise.all(tasks)
-
-    const [volume, profit, marketsTraded, portfolioValue, activityStats, availableBalance, openPositions] = results
-    const proxyIp = proxy ? (results[7] || null) : null
+    const volume = volumeResult.ok ? volumeResult.value : 0
+    const profit = profitResult.ok ? profitResult.value : 0
+    const marketsTraded = marketsTradedResult.ok ? marketsTradedResult.value : 0
+    const portfolioValue = portfolioValueResult.ok ? portfolioValueResult.value : 0
+    const activityStats = activityResult.ok ? activityResult.value : { days: 0, months: 0, lastGap: null }
+    const availableBalance = balanceResult.ok ? balanceResult.value : 0
+    const openPositions = positionsResult.ok ? positionsResult.value : []
+    const proxyIp = proxyIpResult.ok ? proxyIpResult.value : null
 
     const netWorth = availableBalance + portfolioValue
 
@@ -394,6 +407,14 @@ export default async function handler(req, res) {
       endDate: p.endDate,
     }))
 
+    // 判断状态
+    let status = 'success'
+    if (failedFields.length === dataResults.length) {
+      status = 'error'
+    } else if (failedFields.length > 0) {
+      status = 'partial'
+    }
+
     return res.status(200).json({
       address,
       profit,
@@ -407,7 +428,8 @@ export default async function handler(req, res) {
       activeMonths: activityStats.months,
       positions,
       proxyIp,
-      status: 'success',
+      failedFields: failedFields.length > 0 ? failedFields : undefined,
+      status,
     })
   } catch (error) {
     return res.status(500).json({

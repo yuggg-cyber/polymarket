@@ -45,8 +45,10 @@ export interface WalletData {
   proxyIp?: string | null
   /** 代理重试次数（代理模式下返回） */
   proxyRetries?: number
+  /** 查询失败的数据字段名列表（部分成功时使用） */
+  failedFields?: string[]
   /** 查询状态 */
-  status: 'pending' | 'loading' | 'success' | 'error'
+  status: 'pending' | 'loading' | 'success' | 'partial' | 'error'
   errorMessage?: string
 }
 

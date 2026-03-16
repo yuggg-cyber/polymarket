@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
@@ -59,6 +60,16 @@ function shortenAddress(address: string): string {
 }
 
 // ============================================================
+// failedFields 到数据列字段的映射
+// ============================================================
+
+/** 根据 failedFields 判断某个数据字段是否失败 */
+function isFieldFailed(failedFields: string[] | undefined, ...fieldNames: string[]): boolean {
+  if (!failedFields || failedFields.length === 0) return false
+  return fieldNames.some(name => failedFields.includes(name))
+}
+
+// ============================================================
 // 排序图标
 // ============================================================
 
@@ -69,7 +80,7 @@ function SortIcon({ active, direction }: { active: boolean; direction: SortDirec
 }
 
 // ============================================================
-// 排序列定义 — 主表格共 13 列（checkbox + 展开 + 序号 + 地址 + 9 数据列）
+// 排序列定义
 // ============================================================
 
 const SORT_COLS: { field: SortField; label: string; tip: string }[] = [
@@ -84,7 +95,7 @@ const SORT_COLS: { field: SortField; label: string; tip: string }[] = [
   { field: 'activeMonths',     label: '活跃月',   tip: '历史累计活跃月数' },
 ]
 
-const TOTAL_COLS = 4 + SORT_COLS.length // checkbox + 展开按钮 + 序号 + 地址 + 9 数据列 = 13
+const TOTAL_COLS = 4 + SORT_COLS.length // checkbox + 展开 + 序号 + 地址 + 9 数据列 = 13
 
 // ============================================================
 // 仓位详情行
@@ -103,7 +114,6 @@ function PositionDetailRows({ positions }: { positions: Position[] }) {
 
   return (
     <>
-      {/* 子表头 */}
       <tr className="bg-blue-50/60 border-b border-blue-100">
         <td colSpan={4} className="px-4 py-2.5 text-sm font-semibold text-blue-700">
           持仓明细
@@ -185,7 +195,7 @@ function PositionDetailRows({ positions }: { positions: Position[] }) {
 // ============================================================
 
 function SummaryCards({ results }: { results: WalletData[] }) {
-  const ok = results.filter((r) => r.status === 'success')
+  const ok = results.filter((r) => r.status === 'success' || r.status === 'partial')
   if (ok.length === 0) return null
 
   const totalProfit    = ok.reduce((s, r) => s + r.profit, 0)
@@ -311,12 +321,9 @@ export function ResultsTable({
     if (!searchQuery.trim()) return results
     const q = searchQuery.trim().toLowerCase()
     return results.filter((r) => {
-      // 按地址搜索
       if (r.address.toLowerCase().includes(q)) return true
-      // 按备注搜索
       const note = addressNotes[r.address] || addressNotes[r.address.toLowerCase()] || ''
       if (note.toLowerCase().includes(q)) return true
-      // 按序号搜索
       const idx = addressIndexMap.get(r.address) ?? 0
       if (String(idx) === q) return true
       return false
@@ -325,8 +332,11 @@ export function ResultsTable({
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
-      if (a.status !== 'success' && b.status === 'success') return 1
-      if (a.status === 'success' && b.status !== 'success') return -1
+      // error 排最后，success 和 partial 正常排序
+      const aIsData = a.status === 'success' || a.status === 'partial'
+      const bIsData = b.status === 'success' || b.status === 'partial'
+      if (!aIsData && bIsData) return 1
+      if (aIsData && !bIsData) return -1
       if (sortField === 'index') {
         const ai = addressIndexMap.get(a.address) ?? 0
         const bi = addressIndexMap.get(b.address) ?? 0
@@ -339,7 +349,9 @@ export function ResultsTable({
   }, [filtered, sortField, sortDirection, addressIndexMap])
 
   const okCount = results.filter((r) => r.status === 'success').length
+  const partialCount = results.filter((r) => r.status === 'partial').length
   const errorCount = results.filter((r) => r.status === 'error').length
+  const retryableCount = errorCount + partialCount
 
   // 导出相关
   const getExportData = () => {
@@ -357,6 +369,29 @@ export function ResultsTable({
     setExportMenuOpen(false)
   }
 
+  // 渲染单个数据单元格，失败的字段显示 "-"
+  const renderCell = (
+    wallet: WalletData,
+    value: number | null,
+    failedFieldNames: string[],
+    formatter: (v: number) => string,
+    extraClass = ''
+  ) => {
+    const failed = isFieldFailed(wallet.failedFields, ...failedFieldNames)
+    if (failed) {
+      return (
+        <td className="px-3 py-3 text-center text-sm text-orange-400 font-mono" title={`获取失败: ${failedFieldNames.join('、')}`}>
+          -
+        </td>
+      )
+    }
+    return (
+      <td className={`px-3 py-3 text-center font-mono text-sm ${extraClass}`}>
+        {value !== null ? formatter(value) : '-'}
+      </td>
+    )
+  }
+
   const rows: React.ReactNode[] = []
   for (const wallet of sorted) {
     const isExpanded = expandedRows.has(wallet.address)
@@ -365,11 +400,13 @@ export function ResultsTable({
     const isRefreshing = refreshingAddr === wallet.address
     const rowIndex = addressIndexMap.get(wallet.address) ?? 0
     const isSelected = selectedRows.has(wallet.address)
+    const isPartialStatus = wallet.status === 'partial'
+    const isDataReady = wallet.status === 'success' || wallet.status === 'partial'
 
     rows.push(
       <tr
         key={wallet.address}
-        className={`border-b border-gray-100 hover:bg-gray-50/80 transition-colors ${isExpanded ? 'bg-blue-50/30' : ''} ${isSelected ? 'bg-blue-50/50' : ''}`}
+        className={`border-b border-gray-100 hover:bg-gray-50/80 transition-colors ${isExpanded ? 'bg-blue-50/30' : ''} ${isSelected ? 'bg-blue-50/50' : ''} ${isPartialStatus ? 'bg-orange-50/30' : ''}`}
       >
         {/* Checkbox */}
         <td className="w-10 px-2 py-3 text-center">
@@ -383,7 +420,7 @@ export function ResultsTable({
 
         {/* 展开按钮 */}
         <td className="w-10 px-2 py-3 text-center">
-          {wallet.status === 'success' && (
+          {isDataReady && (
             <button
               onClick={() => toggleExpand(wallet.address)}
               className="p-1 rounded hover:bg-gray-200 transition-colors"
@@ -410,6 +447,9 @@ export function ResultsTable({
             {wallet.status === 'error' && (
               <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
             )}
+            {wallet.status === 'partial' && (
+              <span title={wallet.errorMessage || '部分数据获取失败'}><AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" /></span>
+            )}
             <span className="font-mono text-sm text-gray-800" title={wallet.address}>
               {shortenAddress(wallet.address)}
             </span>
@@ -430,7 +470,7 @@ export function ResultsTable({
               <ExternalLink className="w-3.5 h-3.5 text-gray-400" />
             </a>
             {/* 单地址刷新按钮 */}
-            {onRefreshSingle && (wallet.status === 'success' || wallet.status === 'error') && (
+            {onRefreshSingle && isDataReady && (
               <button
                 onClick={() => handleRefreshSingle(wallet.address)}
                 disabled={isRefreshing || isLoading}
@@ -440,7 +480,18 @@ export function ResultsTable({
                 <RefreshCw className={`w-3.5 h-3.5 text-blue-400 ${isRefreshing ? 'animate-spin' : ''}`} />
               </button>
             )}
-            {/* 备注图标 + tooltip */}
+            {/* error 状态也显示刷新按钮 */}
+            {onRefreshSingle && wallet.status === 'error' && (
+              <button
+                onClick={() => handleRefreshSingle(wallet.address)}
+                disabled={isRefreshing || isLoading}
+                className="p-0.5 rounded hover:bg-blue-100 transition-colors disabled:opacity-40"
+                title="重新查询此地址"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-blue-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </button>
+            )}
+            {/* 备注图标 */}
             {(addressNotes[wallet.address] || addressNotes[wallet.address.toLowerCase()]) && (
               <span
                 className="relative group p-0.5 rounded hover:bg-amber-100 transition-colors cursor-default"
@@ -453,8 +504,8 @@ export function ResultsTable({
               </span>
             )}
           </div>
-          {/* 代理出口 IP 显示在地址下方 */}
-          {wallet.proxyIp && (wallet.status === 'success' || wallet.status === 'error') && (
+          {/* 代理出口 IP */}
+          {wallet.proxyIp && isDataReady && (
             <div className="flex items-center gap-1 mt-1">
               <Globe className="w-3 h-3 text-blue-400 flex-shrink-0" />
               <span className="text-xs text-blue-500 font-mono">{wallet.proxyIp}</span>
@@ -465,9 +516,26 @@ export function ResultsTable({
               )}
             </div>
           )}
+          {wallet.proxyIp && wallet.status === 'error' && (
+            <div className="flex items-center gap-1 mt-1">
+              <Globe className="w-3 h-3 text-blue-400 flex-shrink-0" />
+              <span className="text-xs text-blue-500 font-mono">{wallet.proxyIp}</span>
+              {typeof wallet.proxyRetries === 'number' && wallet.proxyRetries > 0 && (
+                <span className="text-xs text-amber-500 ml-1">
+                  (重试{wallet.proxyRetries}次)
+                </span>
+              )}
+            </div>
+          )}
+          {/* partial 状态下显示失败提示 */}
+          {isPartialStatus && wallet.errorMessage && (
+            <div className="text-xs text-orange-500 mt-1" title={wallet.errorMessage}>
+              {wallet.errorMessage}
+            </div>
+          )}
         </td>
 
-        {/* 数据列 — loading 时显示旋转图标覆盖在旧数据上 */}
+        {/* 数据列 */}
         {wallet.status === 'loading' ? (
           <td colSpan={9} className="px-3 py-3 text-center text-gray-400">
             <span className="inline-flex items-center gap-2">
@@ -482,22 +550,41 @@ export function ResultsTable({
           </td>
         ) : (
           <>
-            <td className="px-3 py-3 text-center font-mono text-sm text-gray-800 font-semibold">{formatUSD(wallet.netWorth)}</td>
-            <td className={`px-3 py-3 text-center font-mono text-sm ${pnl.className}`}>{pnl.text}</td>
-            <td className="px-3 py-3 text-center font-mono text-sm text-gray-700">{formatUSD(wallet.availableBalance)}</td>
-            <td className="px-3 py-3 text-center font-mono text-sm text-gray-700">{formatUSD(wallet.portfolioValue)}</td>
-            <td className="px-3 py-3 text-center font-mono text-sm text-gray-700">{formatUSD(wallet.totalVolume)}</td>
-            <td className="px-3 py-3 text-center font-mono text-sm text-gray-700">{wallet.marketsTraded}</td>
-            <td className="px-3 py-3 text-center text-sm text-gray-600">{wallet.lastActiveDay !== null ? `${wallet.lastActiveDay}天前` : '-'}</td>
-            <td className="px-3 py-3 text-center font-mono text-sm text-gray-700">{wallet.activeDays}</td>
-            <td className="px-3 py-3 text-center font-mono text-sm text-gray-700">{wallet.activeMonths}</td>
+            {/* 净资产：依赖可用余额和持仓估值 */}
+            {renderCell(wallet, wallet.netWorth, ['可用余额', '持仓估值'], formatUSD, 'text-gray-800 font-semibold')}
+            {/* 盈亏 */}
+            {isFieldFailed(wallet.failedFields, '盈亏') ? (
+              <td className="px-3 py-3 text-center text-sm text-orange-400 font-mono" title="获取失败: 盈亏">-</td>
+            ) : (
+              <td className={`px-3 py-3 text-center font-mono text-sm ${pnl.className}`}>{pnl.text}</td>
+            )}
+            {/* 可用余额 */}
+            {renderCell(wallet, wallet.availableBalance, ['可用余额'], formatUSD, 'text-gray-700')}
+            {/* 持仓估值 */}
+            {renderCell(wallet, wallet.portfolioValue, ['持仓估值'], formatUSD, 'text-gray-700')}
+            {/* 交易额 */}
+            {renderCell(wallet, wallet.totalVolume, ['交易额'], formatUSD, 'text-gray-700')}
+            {/* 池子数 */}
+            {renderCell(wallet, wallet.marketsTraded, ['池子数'], (v) => String(v), 'text-gray-700')}
+            {/* 最后活跃 */}
+            {isFieldFailed(wallet.failedFields, '活跃度') ? (
+              <td className="px-3 py-3 text-center text-sm text-orange-400 font-mono" title="获取失败: 活跃度">-</td>
+            ) : (
+              <td className="px-3 py-3 text-center text-sm text-gray-600">
+                {wallet.lastActiveDay !== null ? `${wallet.lastActiveDay}天前` : '-'}
+              </td>
+            )}
+            {/* 活跃天 */}
+            {renderCell(wallet, wallet.activeDays, ['活跃度'], (v) => String(v), 'text-gray-700')}
+            {/* 活跃月 */}
+            {renderCell(wallet, wallet.activeMonths, ['活跃度'], (v) => String(v), 'text-gray-700')}
           </>
         )}
       </tr>
     )
 
     // 展开的仓位行
-    if (isExpanded && wallet.status === 'success') {
+    if (isExpanded && isDataReady) {
       rows.push(
         <PositionDetailRows key={wallet.address + '-pos'} positions={wallet.positions} />
       )
@@ -516,6 +603,9 @@ export function ResultsTable({
           <h2 className="text-lg font-bold text-gray-900">查询结果</h2>
           <span className="text-sm text-gray-500">
             已查询 {results.length} 个地址，成功 {okCount} 个
+            {partialCount > 0 && (
+              <span className="text-orange-500 ml-1">，部分成功 {partialCount} 个</span>
+            )}
             {errorCount > 0 && (
               <span className="text-red-500 ml-1">，失败 {errorCount} 个</span>
             )}
@@ -543,15 +633,15 @@ export function ResultsTable({
             )}
           </div>
 
-          {/* 重试失败按钮 */}
-          {onRetryFailed && errorCount > 0 && !isLoading && (
+          {/* 重试失败/部分成功按钮 */}
+          {onRetryFailed && retryableCount > 0 && !isLoading && (
             <button
               onClick={onRetryFailed}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors shadow-sm"
-              title={`重新查询 ${errorCount} 个失败地址`}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors shadow-sm"
+              title={`重新查询 ${retryableCount} 个失败/部分成功的地址`}
             >
               <RotateCcw className="w-4 h-4" />
-              重试失败 ({errorCount})
+              重试失败 ({retryableCount})
             </button>
           )}
 
@@ -569,7 +659,7 @@ export function ResultsTable({
           )}
 
           {/* 导出下拉菜单 */}
-          {okCount > 0 && (
+          {(okCount + partialCount) > 0 && (
             <div className="relative">
               <button
                 onClick={() => setExportMenuOpen(!exportMenuOpen)}

@@ -150,9 +150,9 @@ function App() {
     await handleQuery(addresses)
   }, [results, handleQuery])
 
-  /** 重试所有失败的地址 */
+  /** 重试所有失败和部分成功的地址 */
   const handleRetryFailed = useCallback(async () => {
-    const failedAddresses = results.filter((r) => r.status === 'error')
+    const failedAddresses = results.filter((r) => r.status === 'error' || r.status === 'partial')
     if (failedAddresses.length === 0) return
 
     setProgress((prev) => ({
@@ -162,11 +162,12 @@ function App() {
       isLoading: true,
     }))
 
-    // 将失败地址状态设为 loading（保留其他地址数据不变）
+    // 将失败/部分成功的地址状态设为 loading（保留其他地址数据不变）
+    // 对于 partial 状态，保留旧数据显示，不设为 loading 隐藏
     setResults((prev) =>
       prev.map((r) =>
         r.status === 'error'
-          ? { ...r, status: 'loading' as const, errorMessage: undefined }
+          ? { ...r, status: 'loading' as const, errorMessage: undefined, failedFields: undefined }
           : r
       )
     )
@@ -195,7 +196,7 @@ function App() {
 
     await Promise.allSettled(tasks)
     setProgress((prev) => ({ ...prev, isLoading: false }))
-  }, [results, proxyConfig])
+  }, [results, proxyConfig])  // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="min-h-screen bg-[#f8f9fa]">

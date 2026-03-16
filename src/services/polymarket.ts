@@ -67,6 +67,27 @@ interface PositionItem {
 }
 
 // ============================================================
+// 子请求结果包装：区分成功和失败
+// ============================================================
+
+interface SubResult<T> {
+  ok: true
+  value: T
+}
+interface SubError {
+  ok: false
+  field: string
+}
+type SubOutcome<T> = SubResult<T> | SubError
+
+function success<T>(value: T): SubOutcome<T> {
+  return { ok: true, value }
+}
+function failure<T>(field: string): SubOutcome<T> {
+  return { ok: false, field }
+}
+
+// ============================================================
 // 生成随机 session ID（用于动态代理）
 // ============================================================
 
@@ -108,7 +129,6 @@ class TokenBucket {
       this.tokens -= 1
       return
     }
-    // 计算需要等待多久才能获得一个令牌
     const waitMs = Math.ceil((1 - this.tokens) / this.refillRate)
     await new Promise<void>((resolve) => {
       setTimeout(() => {
@@ -120,16 +140,16 @@ class TokenBucket {
   }
 }
 
-// lb-api 限速: 3 请求/秒，令牌桶容量设为 2（留一点余量避免边界触发）
+// lb-api 限速: 3 请求/秒，令牌桶容量设为 2（留余量）
 const lbApiLimiter = new TokenBucket(2, 2.5)
 
 // ============================================================
 // HTTP helpers（直连模式）
 // ============================================================
 
-const FETCH_TIMEOUT = 15000    // 从 5s 提升到 15s
-const RETRY_BASE_MS = 500      // 从 800ms 降低到 500ms
-const MAX_RETRIES = 3           // 从 2 提升到 3
+const FETCH_TIMEOUT = 15000
+const RETRY_BASE_MS = 500
+const MAX_RETRIES = 3
 
 async function fetchWithTimeout(
   url: string,
@@ -175,7 +195,7 @@ async function fetchJSONWithLbLimit<T>(url: string, retries = MAX_RETRIES): Prom
 
 async function rpcEthCall(
   payload: object,
-  timeout = 8000   // 从 3500ms 提升到 8000ms
+  timeout = 8000
 ): Promise<string | null> {
   const urls = [preferredRpc, ...POLYGON_RPCS.filter((u) => u !== preferredRpc)]
   for (const url of urls) {
@@ -212,150 +232,140 @@ async function getUSDCBalance(wallet: string): Promise<number> {
     method: 'eth_call',
     params: [{ to: USDC_CONTRACT, data }, 'latest'],
   }
-  try {
-    const hex = await rpcEthCall(payload)
-    if (!hex) return 0
-    const raw = hex === '0x' ? 0n : BigInt(hex)
-    const scale = 10n ** BigInt(USDC_DECIMALS)
-    const valueTimes100 = (raw * 100n) / scale
-    const whole = Number(valueTimes100 / 100n)
-    const cent = Number(valueTimes100 % 100n)
-    return whole + cent / 100
-  } catch {
-    return 0
-  }
+  const hex = await rpcEthCall(payload)
+  if (!hex) throw new Error('All RPC endpoints failed')
+  const raw = hex === '0x' ? 0n : BigInt(hex)
+  const scale = 10n ** BigInt(USDC_DECIMALS)
+  const valueTimes100 = (raw * 100n) / scale
+  const whole = Number(valueTimes100 / 100n)
+  const cent = Number(valueTimes100 % 100n)
+  return whole + cent / 100
 }
 
 // ============================================================
-// 直连模式：Data fetching functions（带独立重试）
+// 直连模式：Data fetching functions（抛出异常而非返回 0）
 // ============================================================
 
 async function getVolume(wallet: string): Promise<number> {
-  try {
-    const data = await fetchJSONWithLbLimit<LeaderboardEntry[]>(
-      `${LB_API}/volume?window=all&limit=1&address=${wallet}`
-    )
-    return data?.[0]?.amount ?? 0
-  } catch {
-    return 0
-  }
+  const data = await fetchJSONWithLbLimit<LeaderboardEntry[]>(
+    `${LB_API}/volume?window=all&limit=1&address=${wallet}`
+  )
+  return data?.[0]?.amount ?? 0
 }
 
 async function getProfit(wallet: string): Promise<number> {
-  try {
-    const data = await fetchJSONWithLbLimit<LeaderboardEntry[]>(
-      `${LB_API}/profit?window=all&limit=1&address=${wallet}`
-    )
-    return data?.[0]?.amount ?? 0
-  } catch {
-    return 0
-  }
+  const data = await fetchJSONWithLbLimit<LeaderboardEntry[]>(
+    `${LB_API}/profit?window=all&limit=1&address=${wallet}`
+  )
+  return data?.[0]?.amount ?? 0
 }
 
 async function getMarketsTraded(wallet: string): Promise<number> {
-  try {
-    const data = await fetchJSON<TradedResponse>(
-      `${DATA_API}/traded?user=${wallet}`
-    )
-    return data?.traded ?? 0
-  } catch {
-    return 0
-  }
+  const data = await fetchJSON<TradedResponse>(
+    `${DATA_API}/traded?user=${wallet}`
+  )
+  return data?.traded ?? 0
 }
 
 async function getPortfolioValue(wallet: string): Promise<number> {
-  try {
-    const data = await fetchJSON<ValueResponse[]>(
-      `${DATA_API}/value?user=${wallet}`
-    )
-    return data?.[0]?.value ?? 0
-  } catch {
-    return 0
-  }
+  const data = await fetchJSON<ValueResponse[]>(
+    `${DATA_API}/value?user=${wallet}`
+  )
+  return data?.[0]?.value ?? 0
 }
 
-// activity 最大分页数，避免超级活跃地址无限分页拖慢查询
+// activity 最大分页数
 const MAX_ACTIVITY_PAGES = 10
 
 async function getActivityStats(
   wallet: string
 ): Promise<{ days: number; months: number; lastGap: number | null }> {
-  try {
-    const PAGE = 1000
-    const daysSet = new Set<number>()
-    const monthsSet = new Set<number>()
-    let offset = 0
-    let latestTs: number | null = null
-    let pageCount = 0
+  const PAGE = 1000
+  const daysSet = new Set<number>()
+  const monthsSet = new Set<number>()
+  let offset = 0
+  let latestTs: number | null = null
+  let pageCount = 0
 
-    while (pageCount < MAX_ACTIVITY_PAGES) {
-      let batch: ActivityItem[]
-      try {
-        batch = await fetchJSON<ActivityItem[]>(
-          `${DATA_API}/activity?user=${wallet}&limit=${PAGE}&offset=${offset}`
-        )
-      } catch {
-        break
-      }
-      if (!Array.isArray(batch) || batch.length === 0) break
-
-      for (const item of batch) {
-        const date = new Date(item.timestamp * 1000)
-        const y = date.getFullYear()
-        const mo = date.getMonth() + 1
-        const day = date.getDate()
-        daysSet.add(y * 10000 + mo * 100 + day)
-        monthsSet.add(y * 100 + mo)
-        if (latestTs === null || item.timestamp > latestTs) {
-          latestTs = item.timestamp
-        }
-      }
-
-      if (batch.length < PAGE) break
-      offset += PAGE
-      pageCount++
-    }
-
-    if (latestTs === null) {
-      return { days: 0, months: 0, lastGap: null }
-    }
-
-    const gap = Math.floor(
-      (Date.now() - latestTs * 1000) / (24 * 60 * 60 * 1000)
+  while (pageCount < MAX_ACTIVITY_PAGES) {
+    const batch = await fetchJSON<ActivityItem[]>(
+      `${DATA_API}/activity?user=${wallet}&limit=${PAGE}&offset=${offset}`
     )
-    return { days: daysSet.size, months: monthsSet.size, lastGap: gap }
-  } catch {
+    if (!Array.isArray(batch) || batch.length === 0) break
+
+    for (const item of batch) {
+      const date = new Date(item.timestamp * 1000)
+      const y = date.getFullYear()
+      const mo = date.getMonth() + 1
+      const day = date.getDate()
+      daysSet.add(y * 10000 + mo * 100 + day)
+      monthsSet.add(y * 100 + mo)
+      if (latestTs === null || item.timestamp > latestTs) {
+        latestTs = item.timestamp
+      }
+    }
+
+    if (batch.length < PAGE) break
+    offset += PAGE
+    pageCount++
+  }
+
+  if (latestTs === null) {
     return { days: 0, months: 0, lastGap: null }
   }
+
+  const gap = Math.floor(
+    (Date.now() - latestTs * 1000) / (24 * 60 * 60 * 1000)
+  )
+  return { days: daysSet.size, months: monthsSet.size, lastGap: gap }
 }
 
 async function getPositions(wallet: string): Promise<PositionItem[]> {
-  try {
-    return await fetchJSON<PositionItem[]>(
-      `${DATA_API}/positions?user=${wallet}&sizeThreshold=0`
-    )
-  } catch {
-    return []
-  }
+  return await fetchJSON<PositionItem[]>(
+    `${DATA_API}/positions?user=${wallet}&sizeThreshold=0`
+  )
 }
 
 // ============================================================
-// 直连模式：获取钱包数据
+// 直连模式：获取钱包数据（追踪每个子请求的成功/失败）
 // ============================================================
 
 async function fetchWalletDataDirect(address: string): Promise<WalletData> {
   const wallet = address.toLowerCase()
 
-  const [volume, profit, marketsTraded, portfolioValue, activityStats, availableBalance, openPositions] =
-    await Promise.all([
-      getVolume(wallet),
-      getProfit(wallet),
-      getMarketsTraded(wallet),
-      getPortfolioValue(wallet),
-      getActivityStats(wallet),
-      getUSDCBalance(wallet),
-      getPositions(wallet),
-    ])
+  // 并行发起所有子请求，每个独立 catch，记录成功/失败
+  const [
+    volumeResult,
+    profitResult,
+    marketsTradedResult,
+    portfolioValueResult,
+    activityResult,
+    balanceResult,
+    positionsResult,
+  ] = await Promise.all([
+    getVolume(wallet).then(v => success(v)).catch((): SubOutcome<number> => failure('交易额')),
+    getProfit(wallet).then(v => success(v)).catch((): SubOutcome<number> => failure('盈亏')),
+    getMarketsTraded(wallet).then(v => success(v)).catch((): SubOutcome<number> => failure('池子数')),
+    getPortfolioValue(wallet).then(v => success(v)).catch((): SubOutcome<number> => failure('持仓估值')),
+    getActivityStats(wallet).then(v => success(v)).catch((): SubOutcome<{ days: number; months: number; lastGap: number | null }> => failure('活跃度')),
+    getUSDCBalance(wallet).then(v => success(v)).catch((): SubOutcome<number> => failure('可用余额')),
+    getPositions(wallet).then(v => success(v)).catch((): SubOutcome<PositionItem[]> => failure('持仓列表')),
+  ])
+
+  // 收集失败的字段
+  const failedFields: string[] = []
+  const allResults = [volumeResult, profitResult, marketsTradedResult, portfolioValueResult, activityResult, balanceResult, positionsResult]
+  for (const r of allResults) {
+    if (!r.ok) failedFields.push(r.field)
+  }
+
+  const volume = volumeResult.ok ? volumeResult.value : 0
+  const profit = profitResult.ok ? profitResult.value : 0
+  const marketsTraded = marketsTradedResult.ok ? marketsTradedResult.value : 0
+  const portfolioValue = portfolioValueResult.ok ? portfolioValueResult.value : 0
+  const activityStats = activityResult.ok ? activityResult.value : { days: 0, months: 0, lastGap: null }
+  const availableBalance = balanceResult.ok ? balanceResult.value : 0
+  const openPositions = positionsResult.ok ? positionsResult.value : []
 
   const netWorth = availableBalance + portfolioValue
 
@@ -378,6 +388,14 @@ async function fetchWalletDataDirect(address: string): Promise<WalletData> {
     endDate: p.endDate,
   }))
 
+  // 判断状态：全部成功 = success，部分失败 = partial，全部失败 = error
+  let status: 'success' | 'partial' | 'error' = 'success'
+  if (failedFields.length === allResults.length) {
+    status = 'error'
+  } else if (failedFields.length > 0) {
+    status = 'partial'
+  }
+
   return {
     address,
     profit,
@@ -390,7 +408,9 @@ async function fetchWalletDataDirect(address: string): Promise<WalletData> {
     activeDays: activityStats.days,
     activeMonths: activityStats.months,
     positions,
-    status: 'success',
+    failedFields: failedFields.length > 0 ? failedFields : undefined,
+    status,
+    errorMessage: status === 'error' ? '所有数据获取失败' : (status === 'partial' ? `部分数据获取失败: ${failedFields.join('、')}` : undefined),
   }
 }
 
@@ -405,7 +425,6 @@ async function fetchWalletDataViaProxy(
   address: string,
   proxy: ProxyConfig
 ): Promise<WalletData> {
-  // 自动补全协议前缀，防止用户输入时遗漏 https://
   let base = proxy.apiBase.replace(/\/+$/, '')
   if (!/^https?:\/\//i.test(base)) {
     base = `https://${base}`
@@ -416,7 +435,6 @@ async function fetchWalletDataViaProxy(
   let lastProxyIp: string | null = null
 
   for (let attempt = 0; attempt < MAX_PROXY_RETRIES; attempt++) {
-    // 每次尝试生成新的 session ID，从而获取新的代理 IP
     const sessionId = randomSessionId()
     const proxyUser = `${proxy.userPrefix}_session-${sessionId}`
 
@@ -441,11 +459,10 @@ async function fetchWalletDataViaProxy(
 
       if (!res.ok) {
         const errBody = await res.text()
-        // 尝试从错误响应中提取 proxyIp
         try {
           const errJson = JSON.parse(errBody)
           if (errJson.proxyIp) lastProxyIp = errJson.proxyIp
-        } catch { /* 非 JSON 响应，忽略 */ }
+        } catch { /* 非 JSON 响应 */ }
         throw new Error(`API 返回 ${res.status}: ${errBody}`)
       }
 
@@ -456,17 +473,25 @@ async function fetchWalletDataViaProxy(
         throw new Error(data.error)
       }
 
-      // 成功，返回结果并附带重试次数
+      // 检查代理模式返回的数据是否有部分失败
+      // 服务端返回 failedFields 字段（如果有的话）
+      const failedFields = data.failedFields as string[] | undefined
+      let status: 'success' | 'partial' = 'success'
+      if (failedFields && failedFields.length > 0) {
+        status = 'partial'
+      }
+
       return {
         ...data,
         proxyRetries: attempt,
-        status: 'success',
+        status,
+        failedFields,
+        errorMessage: status === 'partial' ? `部分数据获取失败: ${failedFields!.join('、')}` : undefined,
       } as WalletData
     } catch (error) {
       clearTimeout(timer)
       lastError = error instanceof Error ? error : new Error(String(error))
 
-      // 如果还有重试机会，等待一下再换新 IP 重试
       if (attempt < MAX_PROXY_RETRIES - 1) {
         await new Promise((r) => setTimeout(r, PROXY_RETRY_DELAY_MS * (attempt + 1)))
       }
@@ -474,7 +499,7 @@ async function fetchWalletDataViaProxy(
   }
 
   // 所有重试均失败
-  const result: WalletData = {
+  return {
     address,
     profit: 0,
     availableBalance: 0,
@@ -491,7 +516,6 @@ async function fetchWalletDataViaProxy(
     status: 'error',
     errorMessage: `代理查询失败（已重试 ${MAX_PROXY_RETRIES} 次）: ${lastError?.message ?? '未知错误'}`,
   }
-  return result
 }
 
 // ============================================================
@@ -502,29 +526,10 @@ export async function fetchWalletData(
   address: string,
   proxyConfig?: ProxyConfig
 ): Promise<WalletData> {
-  // 代理模式：fetchWalletDataViaProxy 内部已包含重试和错误处理，不会抛出异常
   if (proxyConfig?.enabled && proxyConfig.host && proxyConfig.apiBase) {
     return await fetchWalletDataViaProxy(address, proxyConfig)
   }
 
-  // 直连模式
-  try {
-    return await fetchWalletDataDirect(address)
-  } catch (error) {
-    return {
-      address,
-      profit: 0,
-      availableBalance: 0,
-      portfolioValue: 0,
-      netWorth: 0,
-      totalVolume: 0,
-      marketsTraded: 0,
-      lastActiveDay: null,
-      activeDays: 0,
-      activeMonths: 0,
-      positions: [],
-      status: 'error',
-      errorMessage: error instanceof Error ? error.message : '获取数据失败',
-    }
-  }
+  // 直连模式 — fetchWalletDataDirect 内部已处理所有错误，不会抛出异常
+  return await fetchWalletDataDirect(address)
 }

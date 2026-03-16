@@ -80,11 +80,56 @@ function randomSessionId(): string {
 }
 
 // ============================================================
+// 令牌桶限速器（用于 lb-api 的 3 请求/秒限速）
+// ============================================================
+
+class TokenBucket {
+  private tokens: number
+  private lastRefill: number
+  private readonly maxTokens: number
+  private readonly refillRate: number // tokens per ms
+  constructor(maxTokens: number, refillPerSecond: number) {
+    this.maxTokens = maxTokens
+    this.tokens = maxTokens
+    this.refillRate = refillPerSecond / 1000
+    this.lastRefill = Date.now()
+  }
+
+  private refill() {
+    const now = Date.now()
+    const elapsed = now - this.lastRefill
+    this.tokens = Math.min(this.maxTokens, this.tokens + elapsed * this.refillRate)
+    this.lastRefill = now
+  }
+
+  async acquire(): Promise<void> {
+    this.refill()
+    if (this.tokens >= 1) {
+      this.tokens -= 1
+      return
+    }
+    // 计算需要等待多久才能获得一个令牌
+    const waitMs = Math.ceil((1 - this.tokens) / this.refillRate)
+    await new Promise<void>((resolve) => {
+      setTimeout(() => {
+        this.refill()
+        this.tokens = Math.max(0, this.tokens - 1)
+        resolve()
+      }, waitMs)
+    })
+  }
+}
+
+// lb-api 限速: 3 请求/秒，令牌桶容量设为 2（留一点余量避免边界触发）
+const lbApiLimiter = new TokenBucket(2, 2.5)
+
+// ============================================================
 // HTTP helpers（直连模式）
 // ============================================================
 
-const FETCH_TIMEOUT = 5000
-const RETRY_BASE_MS = 800
+const FETCH_TIMEOUT = 15000    // 从 5s 提升到 15s
+const RETRY_BASE_MS = 500      // 从 800ms 降低到 500ms
+const MAX_RETRIES = 3           // 从 2 提升到 3
 
 async function fetchWithTimeout(
   url: string,
@@ -101,7 +146,7 @@ async function fetchWithTimeout(
   }
 }
 
-async function fetchJSON<T>(url: string, retries = 2): Promise<T> {
+async function fetchJSON<T>(url: string, retries = MAX_RETRIES): Promise<T> {
   let lastError: Error | null = null
   for (let i = 0; i <= retries; i++) {
     try {
@@ -118,13 +163,19 @@ async function fetchJSON<T>(url: string, retries = 2): Promise<T> {
   throw lastError
 }
 
+/** 带 lb-api 限速的 fetchJSON */
+async function fetchJSONWithLbLimit<T>(url: string, retries = MAX_RETRIES): Promise<T> {
+  await lbApiLimiter.acquire()
+  return fetchJSON<T>(url, retries)
+}
+
 // ============================================================
 // Polygon RPC: USDC.e 余额查询（直连模式）
 // ============================================================
 
 async function rpcEthCall(
   payload: object,
-  timeout = 3500
+  timeout = 8000   // 从 3500ms 提升到 8000ms
 ): Promise<string | null> {
   const urls = [preferredRpc, ...POLYGON_RPCS.filter((u) => u !== preferredRpc)]
   for (const url of urls) {
@@ -176,12 +227,12 @@ async function getUSDCBalance(wallet: string): Promise<number> {
 }
 
 // ============================================================
-// 直连模式：Data fetching functions
+// 直连模式：Data fetching functions（带独立重试）
 // ============================================================
 
 async function getVolume(wallet: string): Promise<number> {
   try {
-    const data = await fetchJSON<LeaderboardEntry[]>(
+    const data = await fetchJSONWithLbLimit<LeaderboardEntry[]>(
       `${LB_API}/volume?window=all&limit=1&address=${wallet}`
     )
     return data?.[0]?.amount ?? 0
@@ -192,7 +243,7 @@ async function getVolume(wallet: string): Promise<number> {
 
 async function getProfit(wallet: string): Promise<number> {
   try {
-    const data = await fetchJSON<LeaderboardEntry[]>(
+    const data = await fetchJSONWithLbLimit<LeaderboardEntry[]>(
       `${LB_API}/profit?window=all&limit=1&address=${wallet}`
     )
     return data?.[0]?.amount ?? 0
@@ -223,6 +274,9 @@ async function getPortfolioValue(wallet: string): Promise<number> {
   }
 }
 
+// activity 最大分页数，避免超级活跃地址无限分页拖慢查询
+const MAX_ACTIVITY_PAGES = 10
+
 async function getActivityStats(
   wallet: string
 ): Promise<{ days: number; months: number; lastGap: number | null }> {
@@ -232,8 +286,9 @@ async function getActivityStats(
     const monthsSet = new Set<number>()
     let offset = 0
     let latestTs: number | null = null
+    let pageCount = 0
 
-    while (true) {
+    while (pageCount < MAX_ACTIVITY_PAGES) {
       let batch: ActivityItem[]
       try {
         batch = await fetchJSON<ActivityItem[]>(
@@ -258,6 +313,7 @@ async function getActivityStats(
 
       if (batch.length < PAGE) break
       offset += PAGE
+      pageCount++
     }
 
     if (latestTs === null) {

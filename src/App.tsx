@@ -12,7 +12,7 @@ const STORAGE_KEY_PROXY = 'polymarket_proxy'
 const STORAGE_KEY_ADDRESSES = 'polymarket_saved_addresses'
 
 /** 每个请求之间的延迟（毫秒），避免触发 API 限流 */
-const REQUEST_DELAY_MS = 800
+const REQUEST_DELAY_MS = 300
 
 const DEFAULT_PROXY: ProxyConfig = {
   enabled: false,
@@ -104,8 +104,9 @@ function App() {
     }))
     setResults(initialResults)
 
-    // 使用并发队列（代理模式并发 3，直连模式并发 2）+ 延迟
-    const concurrency = proxyConfig.enabled ? 3 : 2
+    // 使用并发队列（代理模式并发 8，直连模式并发 5）
+    // lb-api 限速由令牌桶控制，无需在钱包级别过度限制
+    const concurrency = proxyConfig.enabled ? 8 : 5
     const queue = createQueue(concurrency)
     let completed = 0
 

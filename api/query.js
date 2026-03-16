@@ -2,9 +2,9 @@
 // POST /api/query
 // Body: { address, proxyHost, proxyPort, proxyUser, proxyPass }
 
-const http = require('node:http')
-const https = require('node:https')
-const { URL } = require('node:url')
+import http from 'node:http'
+import https from 'node:https'
+import { URL } from 'node:url'
 
 // ============================================================
 // 通过 HTTP CONNECT 代理发起 HTTPS GET 请求
@@ -205,13 +205,13 @@ async function getProxyIP(proxy) {
     const raw = await httpsViaProxy('https://httpbin.org/ip', proxy.host, proxy.port, proxy.user, proxy.pass, 8000)
     const data = JSON.parse(raw)
     return data?.origin || null
-  } catch {
+  } catch (_e) {
     // fallback: 尝试另一个 IP 检测服务
     try {
       const raw = await httpsViaProxy('https://api.ipify.org?format=json', proxy.host, proxy.port, proxy.user, proxy.pass, 8000)
       const data = JSON.parse(raw)
       return data?.ip || null
-    } catch {
+    } catch (_e2) {
       return null
     }
   }
@@ -222,7 +222,7 @@ async function getVolume(wallet, proxy) {
     const raw = await fetchGet(`${LB_API}/volume?window=all&limit=1&address=${wallet}`, proxy)
     const data = JSON.parse(raw)
     return data?.[0]?.amount ?? 0
-  } catch { return 0 }
+  } catch (_e) { return 0 }
 }
 
 async function getProfit(wallet, proxy) {
@@ -230,7 +230,7 @@ async function getProfit(wallet, proxy) {
     const raw = await fetchGet(`${LB_API}/profit?window=all&limit=1&address=${wallet}`, proxy)
     const data = JSON.parse(raw)
     return data?.[0]?.amount ?? 0
-  } catch { return 0 }
+  } catch (_e) { return 0 }
 }
 
 async function getMarketsTraded(wallet, proxy) {
@@ -238,7 +238,7 @@ async function getMarketsTraded(wallet, proxy) {
     const raw = await fetchGet(`${DATA_API}/traded?user=${wallet}`, proxy)
     const data = JSON.parse(raw)
     return data?.traded ?? 0
-  } catch { return 0 }
+  } catch (_e) { return 0 }
 }
 
 async function getPortfolioValue(wallet, proxy) {
@@ -246,7 +246,7 @@ async function getPortfolioValue(wallet, proxy) {
     const raw = await fetchGet(`${DATA_API}/value?user=${wallet}`, proxy)
     const data = JSON.parse(raw)
     return Array.isArray(data) ? (data[0]?.value ?? 0) : 0
-  } catch { return 0 }
+  } catch (_e) { return 0 }
 }
 
 async function getActivityStats(wallet, proxy) {
@@ -261,7 +261,7 @@ async function getActivityStats(wallet, proxy) {
       let raw
       try {
         raw = await fetchGet(`${DATA_API}/activity?user=${wallet}&limit=${PAGE}&offset=${offset}`, proxy)
-      } catch { break }
+      } catch (_e) { break }
       const batch = JSON.parse(raw)
       if (!Array.isArray(batch) || batch.length === 0) break
 
@@ -282,7 +282,7 @@ async function getActivityStats(wallet, proxy) {
     if (latestTs === null) return { days: 0, months: 0, lastGap: null }
     const gap = Math.floor((Date.now() - latestTs * 1000) / (24 * 60 * 60 * 1000))
     return { days: daysSet.size, months: monthsSet.size, lastGap: gap }
-  } catch {
+  } catch (_e) {
     return { days: 0, months: 0, lastGap: null }
   }
 }
@@ -305,7 +305,7 @@ async function getUSDCBalance(wallet, proxy) {
         const cent = Number(valueTimes100 % 100n)
         return whole + cent / 100
       }
-    } catch { /* try next RPC */ }
+    } catch (_e) { /* try next RPC */ }
   }
   return 0
 }
@@ -314,14 +314,14 @@ async function getPositions(wallet, proxy) {
   try {
     const raw = await fetchGet(`${DATA_API}/positions?user=${wallet}&sizeThreshold=0`, proxy)
     return JSON.parse(raw)
-  } catch { return [] }
+  } catch (_e) { return [] }
 }
 
 // ============================================================
 // Main handler
 // ============================================================
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')

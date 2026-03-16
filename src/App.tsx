@@ -165,21 +165,6 @@ function App() {
       {/* 顶部标题栏 */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-[1400px] mx-auto px-6 py-5 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-sm">
-            <svg
-              className="w-6 h-6 text-white"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-              />
-            </svg>
-          </div>
           <div className="flex-1">
             <h1 className="text-xl font-bold text-gray-900">
               Polymarket 钱包分析工具
@@ -265,12 +250,7 @@ function App() {
         )}
       </main>
 
-      {/* 底部 */}
-      <footer className="border-t border-gray-200 bg-white mt-12">
-        <div className="max-w-[1400px] mx-auto px-6 py-4 text-center text-sm text-gray-400">
-          Polymarket 钱包分析工具 — 数据来源：Polymarket 公开 API
-        </div>
-      </footer>
+
     </div>
   )
 }

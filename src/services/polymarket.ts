@@ -340,13 +340,13 @@ async function fetchWalletDataDirect(address: string): Promise<WalletData> {
 // 代理模式：通过 Vercel Serverless Function 查询
 // ============================================================
 
+const MAX_PROXY_RETRIES = 5
+const PROXY_RETRY_DELAY_MS = 1000
+
 async function fetchWalletDataViaProxy(
   address: string,
   proxy: ProxyConfig
 ): Promise<WalletData> {
-  const sessionId = randomSessionId()
-  const proxyUser = `${proxy.userPrefix}_session-${sessionId}`
-
   // 自动补全协议前缀，防止用户输入时遗漏 https://
   let base = proxy.apiBase.replace(/\/+$/, '')
   if (!/^https?:\/\//i.test(base)) {
@@ -354,44 +354,86 @@ async function fetchWalletDataViaProxy(
   }
   const apiUrl = `${base}/api/query`
 
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 60000) // 60s 超时
+  let lastError: Error | null = null
+  let lastProxyIp: string | null = null
 
-  try {
-    const res = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
-        address: address.toLowerCase(),
-        proxyHost: proxy.host,
-        proxyPort: proxy.port,
-        proxyUser,
-        proxyPass: proxy.password,
-      }),
-    })
+  for (let attempt = 0; attempt < MAX_PROXY_RETRIES; attempt++) {
+    // 每次尝试生成新的 session ID，从而获取新的代理 IP
+    const sessionId = randomSessionId()
+    const proxyUser = `${proxy.userPrefix}_session-${sessionId}`
 
-    clearTimeout(timer)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 60000)
 
-    if (!res.ok) {
-      const errBody = await res.text()
-      throw new Error(`API 返回 ${res.status}: ${errBody}`)
+    try {
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          address: address.toLowerCase(),
+          proxyHost: proxy.host,
+          proxyPort: proxy.port,
+          proxyUser,
+          proxyPass: proxy.password,
+        }),
+      })
+
+      clearTimeout(timer)
+
+      if (!res.ok) {
+        const errBody = await res.text()
+        // 尝试从错误响应中提取 proxyIp
+        try {
+          const errJson = JSON.parse(errBody)
+          if (errJson.proxyIp) lastProxyIp = errJson.proxyIp
+        } catch { /* 非 JSON 响应，忽略 */ }
+        throw new Error(`API 返回 ${res.status}: ${errBody}`)
+      }
+
+      const data = await res.json()
+
+      if (data.error) {
+        if (data.proxyIp) lastProxyIp = data.proxyIp
+        throw new Error(data.error)
+      }
+
+      // 成功，返回结果并附带重试次数
+      return {
+        ...data,
+        proxyRetries: attempt,
+        status: 'success',
+      } as WalletData
+    } catch (error) {
+      clearTimeout(timer)
+      lastError = error instanceof Error ? error : new Error(String(error))
+
+      // 如果还有重试机会，等待一下再换新 IP 重试
+      if (attempt < MAX_PROXY_RETRIES - 1) {
+        await new Promise((r) => setTimeout(r, PROXY_RETRY_DELAY_MS * (attempt + 1)))
+      }
     }
-
-    const data = await res.json()
-
-    if (data.error) {
-      throw new Error(data.error)
-    }
-
-    return {
-      ...data,
-      status: 'success',
-    } as WalletData
-  } catch (error) {
-    clearTimeout(timer)
-    throw error
   }
+
+  // 所有重试均失败
+  const result: WalletData = {
+    address,
+    profit: 0,
+    availableBalance: 0,
+    portfolioValue: 0,
+    netWorth: 0,
+    totalVolume: 0,
+    marketsTraded: 0,
+    lastActiveDay: null,
+    activeDays: 0,
+    activeMonths: 0,
+    positions: [],
+    proxyIp: lastProxyIp,
+    proxyRetries: MAX_PROXY_RETRIES,
+    status: 'error',
+    errorMessage: `代理查询失败（已重试 ${MAX_PROXY_RETRIES} 次）: ${lastError?.message ?? '未知错误'}`,
+  }
+  return result
 }
 
 // ============================================================
@@ -402,10 +444,13 @@ export async function fetchWalletData(
   address: string,
   proxyConfig?: ProxyConfig
 ): Promise<WalletData> {
+  // 代理模式：fetchWalletDataViaProxy 内部已包含重试和错误处理，不会抛出异常
+  if (proxyConfig?.enabled && proxyConfig.host && proxyConfig.apiBase) {
+    return await fetchWalletDataViaProxy(address, proxyConfig)
+  }
+
+  // 直连模式
   try {
-    if (proxyConfig?.enabled && proxyConfig.host && proxyConfig.apiBase) {
-      return await fetchWalletDataViaProxy(address, proxyConfig)
-    }
     return await fetchWalletDataDirect(address)
   } catch (error) {
     return {

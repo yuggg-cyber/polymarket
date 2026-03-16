@@ -305,11 +305,16 @@ export function ResultsTable({ results }: ResultsTableProps) {
               <ExternalLink className="w-3.5 h-3.5 text-gray-400" />
             </a>
           </div>
-          {/* 代理出口 IP 显示在地址下方 */}
-          {wallet.proxyIp && wallet.status === 'success' && (
+          {/* 代理出口 IP 显示在地址下方（成功和失败状态都显示） */}
+          {wallet.proxyIp && (wallet.status === 'success' || wallet.status === 'error') && (
             <div className="flex items-center gap-1 mt-1">
               <Globe className="w-3 h-3 text-blue-400 flex-shrink-0" />
               <span className="text-xs text-blue-500 font-mono">{wallet.proxyIp}</span>
+              {typeof wallet.proxyRetries === 'number' && wallet.proxyRetries > 0 && (
+                <span className="text-xs text-amber-500 ml-1">
+                  (重试{wallet.proxyRetries}次)
+                </span>
+              )}
             </div>
           )}
         </td>

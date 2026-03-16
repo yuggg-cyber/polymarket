@@ -42,6 +42,8 @@ export interface WalletData {
   positions: Position[]
   /** 代理出口 IP（代理模式下返回） */
   proxyIp?: string | null
+  /** 代理重试次数（代理模式下返回） */
+  proxyRetries?: number
   /** 查询状态 */
   status: 'pending' | 'loading' | 'success' | 'error'
   errorMessage?: string

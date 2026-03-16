@@ -51,6 +51,7 @@ export interface WalletData {
 }
 
 export type SortField =
+  | 'index'
   | 'netWorth'
   | 'profit'
   | 'availableBalance'

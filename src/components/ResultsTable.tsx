@@ -232,8 +232,8 @@ export function ResultsTable({
   onRefreshSingle,
   onRefreshAll,
 }: ResultsTableProps) {
-  const [sortField, setSortField]       = useState<SortField>('totalVolume')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [sortField, setSortField]       = useState<SortField>('index')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [copiedAddr, setCopiedAddr]     = useState<string | null>(null)
   const [refreshingAddr, setRefreshingAddr] = useState<string | null>(null)
@@ -273,21 +273,26 @@ export function ResultsTable({
     }
   }
 
+  // 构建原始地址到序号的映射（按输入顺序）
+  const addressIndexMap = new Map<string, number>()
+  results.forEach((r, i) => {
+    addressIndexMap.set(r.address, i + 1)
+  })
+
   const sorted = [...results].sort((a, b) => {
     if (a.status !== 'success' && b.status === 'success') return 1
     if (a.status === 'success' && b.status !== 'success') return -1
+    if (sortField === 'index') {
+      const ai = addressIndexMap.get(a.address) ?? 0
+      const bi = addressIndexMap.get(b.address) ?? 0
+      return sortDirection === 'asc' ? ai - bi : bi - ai
+    }
     const av = (a[sortField] as number) ?? -1
     const bv = (b[sortField] as number) ?? -1
     return sortDirection === 'asc' ? av - bv : bv - av
   })
 
   const okCount = results.filter((r) => r.status === 'success').length
-
-  // 构建原始地址到序号的映射（按输入顺序）
-  const addressIndexMap = new Map<string, number>()
-  results.forEach((r, i) => {
-    addressIndexMap.set(r.address, i + 1)
-  })
 
   const rows: React.ReactNode[] = []
   for (const wallet of sorted) {
@@ -469,7 +474,16 @@ export function ResultsTable({
             <thead>
               <tr className="bg-gray-50 border-b-2 border-gray-200">
                 <th className="w-10 px-2 py-3"></th>
-                <th className="w-12 px-2 py-3 text-center text-sm font-semibold text-gray-600">#</th>
+                <th className="w-12 px-2 py-3 text-center whitespace-nowrap">
+                  <button
+                    onClick={() => handleSort('index')}
+                    className="inline-flex items-center justify-center hover:text-gray-900 transition-colors text-sm font-semibold text-gray-600"
+                    title="按导入顺序排序"
+                  >
+                    #
+                    <SortIcon active={sortField === 'index'} direction={sortDirection} />
+                  </button>
+                </th>
                 <th className="px-3 py-3 text-left text-sm font-semibold text-gray-600 whitespace-nowrap">
                   地址
                 </th>

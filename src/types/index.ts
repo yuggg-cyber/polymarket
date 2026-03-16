@@ -20,26 +20,24 @@ export interface Position {
 /** 钱包分析数据 */
 export interface WalletData {
   address: string
-  /** 交易次数 */
-  totalTrades: number
-  /** 结算次数 */
-  totalSettlements: number
-  /** 交易额（USDC） */
+  /** 盈亏（历史累计，来自 lb-api） */
+  profit: number
+  /** 可用余额（链上 USDC.e 查询） */
+  availableBalance: number
+  /** 持仓估值（来自 data-api/value） */
+  portfolioValue: number
+  /** 净资产 = 可用余额 + 持仓估值 */
+  netWorth: number
+  /** 交易额（历史累计，来自 lb-api） */
   totalVolume: number
+  /** 池子数（参与的市场数量） */
+  marketsTraded: number
+  /** 最后活跃（距今天数） */
+  lastActiveDay: number | null
   /** 活跃天数 */
   activeDays: number
-  /** 活跃周数 */
-  activeWeeks: number
   /** 活跃月数 */
   activeMonths: number
-  /** 活跃年数 */
-  activeYears: number
-  /** 可用余额（USDC，链上查询） */
-  availableBalance: number
-  /** 投资组合价值 */
-  portfolioValue: number
-  /** 净资产总计 = 可用余额 + 投资组合价值 */
-  netWorth: number
   /** 当前持仓列表 */
   positions: Position[]
   /** 查询状态 */
@@ -48,16 +46,15 @@ export interface WalletData {
 }
 
 export type SortField =
-  | 'totalTrades'
-  | 'totalSettlements'
-  | 'totalVolume'
-  | 'activeDays'
-  | 'activeWeeks'
-  | 'activeMonths'
-  | 'activeYears'
+  | 'netWorth'
+  | 'profit'
   | 'availableBalance'
   | 'portfolioValue'
-  | 'netWorth'
+  | 'totalVolume'
+  | 'marketsTraded'
+  | 'lastActiveDay'
+  | 'activeDays'
+  | 'activeMonths'
 
 export type SortDirection = 'asc' | 'desc'
 

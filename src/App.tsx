@@ -20,23 +20,22 @@ function App() {
     // 初始化所有钱包为 loading 状态
     const initialResults: WalletData[] = addresses.map((addr) => ({
       address: addr,
-      totalTrades: 0,
-      totalSettlements: 0,
-      totalVolume: 0,
-      activeDays: 0,
-      activeWeeks: 0,
-      activeMonths: 0,
-      activeYears: 0,
+      profit: 0,
       availableBalance: 0,
       portfolioValue: 0,
       netWorth: 0,
+      totalVolume: 0,
+      marketsTraded: 0,
+      lastActiveDay: null,
+      activeDays: 0,
+      activeMonths: 0,
       positions: [],
       status: 'loading' as const,
     }))
     setResults(initialResults)
 
-    // 使用并发队列（最大并发 5）
-    const queue = createQueue(5)
+    // 使用并发队列（最大并发 3）
+    const queue = createQueue(3)
     let completed = 0
 
     const tasks = addresses.map((addr) =>
@@ -56,13 +55,13 @@ function App() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#f8f9fa]">
       {/* 顶部标题栏 */}
-      <header className="border-b bg-card shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-[1400px] mx-auto px-6 py-5 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-sm">
             <svg
-              className="w-5 h-5 text-primary-foreground"
+              className="w-6 h-6 text-white"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -76,30 +75,30 @@ function App() {
             </svg>
           </div>
           <div>
-            <h1 className="text-lg font-bold text-foreground">
+            <h1 className="text-xl font-bold text-gray-900">
               Polymarket 钱包分析工具
             </h1>
-            <p className="text-xs text-muted-foreground">
-              追踪和分析 Polymarket 钱包地址的交易数据
+            <p className="text-sm text-gray-500">
+              批量查询和分析 Polymarket 钱包地址的交易数据
             </p>
           </div>
         </div>
       </header>
 
       {/* 主内容区 */}
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="max-w-[1400px] mx-auto px-6 py-8">
         <SearchSection onQuery={handleQuery} progress={progress} />
 
         {results.length > 0 && (
-          <div className="mt-6">
+          <div className="mt-8">
             <ResultsTable results={results} />
           </div>
         )}
       </main>
 
       {/* 底部 */}
-      <footer className="border-t mt-12">
-        <div className="max-w-7xl mx-auto px-4 py-4 text-center text-xs text-muted-foreground">
+      <footer className="border-t border-gray-200 bg-white mt-12">
+        <div className="max-w-[1400px] mx-auto px-6 py-4 text-center text-sm text-gray-400">
           Polymarket 钱包分析工具 — 数据来源：Polymarket 公开 API
         </div>
       </footer>

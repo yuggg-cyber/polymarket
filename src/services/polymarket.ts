@@ -1,29 +1,46 @@
 import type { WalletData, Position } from '@/types'
 
 const DATA_API = 'https://data-api.polymarket.com'
-const POLYGON_RPC = 'https://polygon-rpc.com'
+const LB_API = 'https://lb-api.polymarket.com'
 
-// Polymarket 使用的 USDC 合约地址 (Polygon)
-const USDC_CONTRACTS = [
-  '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', // USDC.e (PoS bridged)
-  '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', // USDC (native)
+// Polymarket 使用的 USDC.e 合约地址 (Polygon PoS bridged)
+const USDC_CONTRACT = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
+const USDC_DECIMALS = 6
+
+// Polygon RPC 端点列表（带 fallback）
+const POLYGON_RPCS = [
+  'https://polygon.drpc.org',
+  'https://polygon.publicnode.com',
+  'https://polygon-bor-rpc.publicnode.com',
+  'https://1rpc.io/matic',
+  'https://rpc.ankr.com/polygon',
 ]
+let preferredRpc = POLYGON_RPCS[0]
 
 // ============================================================
 // API response types
 // ============================================================
 
-interface ActivityItem {
+interface LeaderboardEntry {
   proxyWallet: string
+  amount: number
+  pseudonym: string
+  name: string
+}
+
+interface TradedResponse {
+  user: string
+  traded: number
+}
+
+interface ValueResponse {
+  user: string
+  value: number
+}
+
+interface ActivityItem {
   timestamp: number
-  conditionId: string
-  type: string // TRADE | REDEEM | MERGE | REWARD
-  size: number
-  usdcSize: number
-  price: number
-  side: string
-  title: string
-  outcome: string
+  type: string
 }
 
 interface PositionItem {
@@ -38,7 +55,6 @@ interface PositionItem {
   percentPnl: number
   totalBought: number
   realizedPnl: number
-  percentRealizedPnl: number
   curPrice: number
   redeemable: boolean
   mergeable: boolean
@@ -46,80 +62,210 @@ interface PositionItem {
   slug: string
   icon: string
   outcome: string
-  outcomeIndex: number
   endDate: string
 }
 
-interface ClosedPositionItem {
-  proxyWallet: string
-  conditionId: string
-  avgPrice: number
-  totalBought: number
-  realizedPnl: number
-  curPrice: number
-  timestamp: number
-  title: string
-  outcome: string
-}
-
-interface ValueResponse {
-  user: string
-  value: number
-}
-
 // ============================================================
-// HTTP helper with retry
+// HTTP helpers
 // ============================================================
+
+const FETCH_TIMEOUT = 5000
+const RETRY_BASE_MS = 800
+
+async function fetchWithTimeout(
+  url: string,
+  options?: RequestInit,
+  timeout = FETCH_TIMEOUT
+): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeout)
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal })
+    return res
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 async function fetchJSON<T>(url: string, retries = 2): Promise<T> {
   let lastError: Error | null = null
-
   for (let i = 0; i <= retries; i++) {
     try {
-      const response = await fetch(url)
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      return (await response.json()) as T
+      const res = await fetchWithTimeout(url)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return (await res.json()) as T
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error))
       if (i < retries) {
-        await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)))
+        await new Promise((r) => setTimeout(r, RETRY_BASE_MS * (i + 1)))
       }
     }
   }
-
   throw lastError
 }
 
 // ============================================================
-// Data fetching functions
+// Polygon RPC: USDC.e 余额查询（带多节点 fallback）
 // ============================================================
 
-/** 分页获取全部活动记录 */
-async function getAllActivities(wallet: string): Promise<ActivityItem[]> {
-  const all: ActivityItem[] = []
-  const limit = 500
-  let offset = 0
-  const maxOffset = 5000
-
-  while (offset <= maxOffset) {
+async function rpcEthCall(
+  payload: object,
+  timeout = 3500
+): Promise<string | null> {
+  const urls = [preferredRpc, ...POLYGON_RPCS.filter((u) => u !== preferredRpc)]
+  for (const url of urls) {
     try {
-      const batch = await fetchJSON<ActivityItem[]>(
-        `${DATA_API}/activity?user=${wallet}&limit=${limit}&offset=${offset}`
+      const res = await fetchWithTimeout(
+        url,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+        timeout
       )
-      all.push(...batch)
-      if (batch.length < limit) break
-      offset += limit
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const j = await res.json()
+      const result = Array.isArray(j) ? j[0]?.result : j?.result
+      if (typeof result === 'string' && result.startsWith('0x')) {
+        preferredRpc = url
+        return result
+      }
     } catch {
-      break
+      // try next RPC
     }
   }
-
-  return all
+  return null
 }
 
-/** 获取当前持仓（sizeThreshold=0 获取全部） */
+async function getUSDCBalance(wallet: string): Promise<number> {
+  const addrHex = wallet.slice(2).toLowerCase()
+  const data = '0x70a08231' + addrHex.padStart(64, '0')
+  const payload = {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'eth_call',
+    params: [{ to: USDC_CONTRACT, data }, 'latest'],
+  }
+  try {
+    const hex = await rpcEthCall(payload)
+    if (!hex) return 0
+    const raw = hex === '0x' ? 0n : BigInt(hex)
+    // 精确到 2 位小数
+    const scale = 10n ** BigInt(USDC_DECIMALS)
+    const valueTimes100 = (raw * 100n) / scale
+    const whole = Number(valueTimes100 / 100n)
+    const cent = Number(valueTimes100 % 100n)
+    return whole + cent / 100
+  } catch {
+    return 0
+  }
+}
+
+// ============================================================
+// Data fetching functions (与参考网站一致的 API)
+// ============================================================
+
+/** 获取交易额（来自排行榜 API） */
+async function getVolume(wallet: string): Promise<number> {
+  try {
+    const data = await fetchJSON<LeaderboardEntry[]>(
+      `${LB_API}/volume?window=all&limit=1&address=${wallet}`
+    )
+    return data?.[0]?.amount ?? 0
+  } catch {
+    return 0
+  }
+}
+
+/** 获取盈亏（来自排行榜 API） */
+async function getProfit(wallet: string): Promise<number> {
+  try {
+    const data = await fetchJSON<LeaderboardEntry[]>(
+      `${LB_API}/profit?window=all&limit=1&address=${wallet}`
+    )
+    return data?.[0]?.amount ?? 0
+  } catch {
+    return 0
+  }
+}
+
+/** 获取池子数（参与的市场数量） */
+async function getMarketsTraded(wallet: string): Promise<number> {
+  try {
+    const data = await fetchJSON<TradedResponse>(
+      `${DATA_API}/traded?user=${wallet}`
+    )
+    return data?.traded ?? 0
+  } catch {
+    return 0
+  }
+}
+
+/** 获取持仓估值 */
+async function getPortfolioValue(wallet: string): Promise<number> {
+  try {
+    const data = await fetchJSON<ValueResponse[]>(
+      `${DATA_API}/value?user=${wallet}`
+    )
+    return data?.[0]?.value ?? 0
+  } catch {
+    return 0
+  }
+}
+
+/** 获取活跃度数据（分页遍历 activity） */
+async function getActivityStats(
+  wallet: string
+): Promise<{ days: number; months: number; lastGap: number | null }> {
+  try {
+    const PAGE = 1000
+    const daysSet = new Set<number>()
+    const monthsSet = new Set<number>()
+    let offset = 0
+    let latestTs: number | null = null
+
+    while (true) {
+      let batch: ActivityItem[]
+      try {
+        batch = await fetchJSON<ActivityItem[]>(
+          `${DATA_API}/activity?user=${wallet}&limit=${PAGE}&offset=${offset}`
+        )
+      } catch {
+        break
+      }
+      if (!Array.isArray(batch) || batch.length === 0) break
+
+      for (const item of batch) {
+        const date = new Date(item.timestamp * 1000)
+        const y = date.getFullYear()
+        const mo = date.getMonth() + 1
+        const day = date.getDate()
+        daysSet.add(y * 10000 + mo * 100 + day)
+        monthsSet.add(y * 100 + mo)
+        if (latestTs === null || item.timestamp > latestTs) {
+          latestTs = item.timestamp
+        }
+      }
+
+      if (batch.length < PAGE) break
+      offset += PAGE
+    }
+
+    if (latestTs === null) {
+      return { days: 0, months: 0, lastGap: null }
+    }
+
+    const gap = Math.floor(
+      (Date.now() - latestTs * 1000) / (24 * 60 * 60 * 1000)
+    )
+    return { days: daysSet.size, months: monthsSet.size, lastGap: gap }
+  } catch {
+    return { days: 0, months: 0, lastGap: null }
+  }
+}
+
+/** 获取当前持仓列表 */
 async function getPositions(wallet: string): Promise<PositionItem[]> {
   try {
     return await fetchJSON<PositionItem[]>(
@@ -130,206 +276,74 @@ async function getPositions(wallet: string): Promise<PositionItem[]> {
   }
 }
 
-/** 获取已结算仓位 */
-async function getClosedPositions(wallet: string): Promise<ClosedPositionItem[]> {
-  const all: ClosedPositionItem[] = []
-  const limit = 100
-  let offset = 0
-  const maxIterations = 20
-
-  for (let i = 0; i < maxIterations; i++) {
-    try {
-      const batch = await fetchJSON<ClosedPositionItem[]>(
-        `${DATA_API}/closed-positions?user=${wallet}&limit=${limit}&offset=${offset}`
-      )
-      all.push(...batch)
-      if (batch.length < limit) break
-      offset += limit
-    } catch {
-      break
-    }
-  }
-
-  return all
-}
-
-/** 获取投资组合价值 */
-async function getPortfolioValue(wallet: string): Promise<number> {
-  try {
-    const data = await fetchJSON<ValueResponse[]>(
-      `${DATA_API}/value?user=${wallet}`
-    )
-    if (data && data.length > 0) {
-      return data[0].value || 0
-    }
-    return 0
-  } catch {
-    return 0
-  }
-}
-
-/** 通过 Polygon RPC 查询 USDC 余额 */
-async function getUSDCBalance(wallet: string): Promise<number> {
-  const addrPadded = wallet.replace('0x', '').toLowerCase().padStart(64, '0')
-  const callData = '0x70a08231' + addrPadded
-  let totalBalance = 0
-
-  for (const contract of USDC_CONTRACTS) {
-    try {
-      const payload = {
-        jsonrpc: '2.0',
-        method: 'eth_call',
-        params: [{ to: contract, data: callData }, 'latest'],
-        id: 1,
-      }
-      const response = await fetch(POLYGON_RPC, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const result = await response.json()
-      if (result.result) {
-        totalBalance += parseInt(result.result, 16) / 1e6
-      }
-    } catch {
-      // 忽略单个合约查询失败
-    }
-  }
-
-  return totalBalance
-}
-
-// ============================================================
-// Calculation logic
-// ============================================================
-
-function calculateMetrics(
-  activities: ActivityItem[],
-  closedPositions: ClosedPositionItem[],
-  openPositions: PositionItem[],
-  portfolioValue: number,
-  availableBalance: number
-): Omit<WalletData, 'address' | 'status' | 'errorMessage'> {
-  // --- 交易次数：activity 中 type=TRADE 的数量 ---
-  const trades = activities.filter((a) => a.type === 'TRADE')
-  const totalTrades = trades.length
-
-  // --- 结算次数：closed-positions 的数量 ---
-  const totalSettlements = closedPositions.length
-
-  // --- 交易额：所有 TRADE 的 usdcSize 总和（精确） ---
-  const totalVolume = trades.reduce((sum, t) => sum + (t.usdcSize || 0), 0)
-
-  // --- 活跃度：从 activity 的 timestamp 计算 ---
-  const daysSet = new Set<string>()
-  const weeksSet = new Set<string>()
-  const monthsSet = new Set<string>()
-  const yearsSet = new Set<string>()
-
-  for (const activity of activities) {
-    if (activity.timestamp) {
-      const date = new Date(activity.timestamp * 1000)
-      const y = date.getFullYear()
-      const m = String(date.getMonth() + 1).padStart(2, '0')
-      const d = String(date.getDate()).padStart(2, '0')
-
-      daysSet.add(`${y}-${m}-${d}`)
-      monthsSet.add(`${y}-${m}`)
-      yearsSet.add(`${y}`)
-
-      // ISO week number
-      const jan1 = new Date(y, 0, 1)
-      const dayOfYear = Math.floor(
-        (date.getTime() - jan1.getTime()) / 86400000
-      )
-      const weekNum = Math.ceil((dayOfYear + jan1.getDay() + 1) / 7)
-      weeksSet.add(`${y}-W${String(weekNum).padStart(2, '0')}`)
-    }
-  }
-
-  // --- 净资产 ---
-  const netWorth = availableBalance + portfolioValue
-
-  // --- 持仓列表 ---
-  const positions: Position[] = openPositions.map((p) => ({
-    title: p.title,
-    slug: p.slug,
-    icon: p.icon,
-    outcome: p.outcome,
-    size: p.size,
-    avgPrice: p.avgPrice,
-    currentValue: p.currentValue,
-    curPrice: p.curPrice,
-    cashPnl: p.cashPnl,
-    percentPnl: p.percentPnl,
-    totalBought: p.totalBought,
-    realizedPnl: p.realizedPnl,
-    redeemable: p.redeemable,
-    mergeable: p.mergeable,
-    endDate: p.endDate,
-  }))
-
-  return {
-    totalTrades,
-    totalSettlements,
-    totalVolume,
-    activeDays: daysSet.size,
-    activeWeeks: weeksSet.size,
-    activeMonths: monthsSet.size,
-    activeYears: yearsSet.size,
-    availableBalance,
-    portfolioValue,
-    netWorth,
-    positions,
-  }
-}
-
 // ============================================================
 // Main export: fetch all data for a wallet
 // ============================================================
 
 export async function fetchWalletData(address: string): Promise<WalletData> {
   try {
-    // 直接使用地址查询（Polymarket data-api 支持 proxy wallet）
     const wallet = address.toLowerCase()
 
-    // 并行获取所有数据
-    const [activities, closedPositions, openPositions, portfolioValue, availableBalance] =
+    // 并行获取所有数据（与参考网站一致）
+    const [volume, profit, marketsTraded, portfolioValue, activityStats, availableBalance, openPositions] =
       await Promise.all([
-        getAllActivities(wallet),
-        getClosedPositions(wallet),
-        getPositions(wallet),
+        getVolume(wallet),
+        getProfit(wallet),
+        getMarketsTraded(wallet),
         getPortfolioValue(wallet),
+        getActivityStats(wallet),
         getUSDCBalance(wallet),
+        getPositions(wallet),
       ])
 
-    // 计算指标
-    const metrics = calculateMetrics(
-      activities,
-      closedPositions,
-      openPositions,
-      portfolioValue,
-      availableBalance
-    )
+    // 净资产 = 可用余额 + 持仓估值
+    const netWorth = availableBalance + portfolioValue
+
+    // 持仓列表
+    const positions: Position[] = openPositions.map((p) => ({
+      title: p.title,
+      slug: p.slug,
+      icon: p.icon,
+      outcome: p.outcome,
+      size: p.size,
+      avgPrice: p.avgPrice,
+      currentValue: p.currentValue,
+      curPrice: p.curPrice,
+      cashPnl: p.cashPnl,
+      percentPnl: p.percentPnl,
+      totalBought: p.totalBought,
+      realizedPnl: p.realizedPnl,
+      redeemable: p.redeemable,
+      mergeable: p.mergeable,
+      endDate: p.endDate,
+    }))
 
     return {
       address,
-      ...metrics,
+      profit,
+      availableBalance,
+      portfolioValue,
+      netWorth,
+      totalVolume: volume,
+      marketsTraded,
+      lastActiveDay: activityStats.lastGap,
+      activeDays: activityStats.days,
+      activeMonths: activityStats.months,
+      positions,
       status: 'success',
     }
   } catch (error) {
     return {
       address,
-      totalTrades: 0,
-      totalSettlements: 0,
-      totalVolume: 0,
-      activeDays: 0,
-      activeWeeks: 0,
-      activeMonths: 0,
-      activeYears: 0,
+      profit: 0,
       availableBalance: 0,
       portfolioValue: 0,
       netWorth: 0,
+      totalVolume: 0,
+      marketsTraded: 0,
+      lastActiveDay: null,
+      activeDays: 0,
+      activeMonths: 0,
       positions: [],
       status: 'error',
       errorMessage: error instanceof Error ? error.message : '获取数据失败',

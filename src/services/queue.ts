@@ -1,54 +1,31 @@
-import type { WalletData } from '@/types'
-
 /**
- * Process a queue of items with concurrency control.
- * @param items - Array of items to process
- * @param processor - Async function to process each item
- * @param onResult - Callback when each item completes
- * @param concurrency - Maximum number of concurrent operations
+ * 简单的并发控制队列
  */
-export async function processQueue(
-  items: string[],
-  processor: (item: string) => Promise<WalletData>,
-  onResult: (result: WalletData, index: number) => void,
-  concurrency: number = 5
-): Promise<void> {
-  let currentIndex = 0
+export function createQueue(concurrency: number) {
+  let running = 0
+  const queue: (() => void)[] = []
 
-  async function processNext(): Promise<void> {
-    while (currentIndex < items.length) {
-      const index = currentIndex++
-      const item = items[index]
-
-      try {
-        const result = await processor(item)
-        onResult(result, index)
-      } catch (error) {
-        const errorResult: WalletData = {
-          address: item,
-          totalTrades: 0,
-          totalVolume: 0,
-          totalPnL: 0,
-          roi: 0,
-          winRate: 0,
-          totalInvested: 0,
-          totalReturn: 0,
-          activeDays: 0,
-          maxSingleTradePnL: 0,
-          portfolioValue: 0,
-          status: 'error',
-          errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        }
-        onResult(errorResult, index)
-      }
-    }
+  function next() {
+    if (running >= concurrency || queue.length === 0) return
+    running++
+    const task = queue.shift()!
+    task()
   }
 
-  // Create `concurrency` number of workers
-  const workers: Promise<void>[] = []
-  for (let i = 0; i < Math.min(concurrency, items.length); i++) {
-    workers.push(processNext())
+  return {
+    add<T>(fn: () => Promise<T>): Promise<T> {
+      return new Promise<T>((resolve, reject) => {
+        queue.push(() => {
+          fn()
+            .then(resolve)
+            .catch(reject)
+            .finally(() => {
+              running--
+              next()
+            })
+        })
+        next()
+      })
+    },
   }
-
-  await Promise.all(workers)
 }

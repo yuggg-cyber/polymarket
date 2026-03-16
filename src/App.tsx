@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import type { WalletData, QueryProgress } from '@/types'
-import SearchSection from '@/components/SearchSection'
-import ResultsTable from '@/components/ResultsTable'
+import { fetchWalletData } from '@/services/polymarket'
+import { createQueue } from '@/services/queue'
+import { SearchSection } from '@/components/SearchSection'
+import { ResultsTable } from '@/components/ResultsTable'
 
 function App() {
   const [results, setResults] = useState<WalletData[]>([])
@@ -11,35 +13,95 @@ function App() {
     isLoading: false,
   })
 
+  const handleQuery = useCallback(async (addresses: string[]) => {
+    setResults([])
+    setProgress({ total: addresses.length, completed: 0, isLoading: true })
+
+    // 初始化所有钱包为 loading 状态
+    const initialResults: WalletData[] = addresses.map((addr) => ({
+      address: addr,
+      totalTrades: 0,
+      totalSettlements: 0,
+      totalVolume: 0,
+      activeDays: 0,
+      activeWeeks: 0,
+      activeMonths: 0,
+      activeYears: 0,
+      availableBalance: 0,
+      portfolioValue: 0,
+      netWorth: 0,
+      positions: [],
+      status: 'loading' as const,
+    }))
+    setResults(initialResults)
+
+    // 使用并发队列（最大并发 5）
+    const queue = createQueue(5)
+    let completed = 0
+
+    const tasks = addresses.map((addr) =>
+      queue.add(async () => {
+        const data = await fetchWalletData(addr)
+        completed++
+        setProgress((prev) => ({ ...prev, completed }))
+        setResults((prev) =>
+          prev.map((r) => (r.address === addr ? data : r))
+        )
+        return data
+      })
+    )
+
+    await Promise.allSettled(tasks)
+    setProgress((prev) => ({ ...prev, isLoading: false }))
+  }, [])
+
   return (
-    <div className="dark min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-7xl px-4 py-8">
-        {/* Header */}
-        <header className="mb-12 text-center">
-          <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl">
-            <span className="text-primary">Polymarket</span> Wallet Analyzer
-          </h1>
-          <p className="mt-3 text-lg text-muted-foreground">
-            Track and analyze Polymarket wallet addresses — P&L, ROI, Win Rate, and more.
-          </p>
-        </header>
+    <div className="min-h-screen bg-background">
+      {/* 顶部标题栏 */}
+      <header className="border-b bg-card shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+            <svg
+              className="w-5 h-5 text-primary-foreground"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+              />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-foreground">
+              Polymarket 钱包分析工具
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              追踪和分析 Polymarket 钱包地址的交易数据
+            </p>
+          </div>
+        </div>
+      </header>
 
-        {/* Search Section */}
-        <SearchSection
-          setResults={setResults}
-          progress={progress}
-          setProgress={setProgress}
-        />
+      {/* 主内容区 */}
+      <main className="max-w-7xl mx-auto px-4 py-6">
+        <SearchSection onQuery={handleQuery} progress={progress} />
 
-        {/* Results Section */}
         {results.length > 0 && (
-          <ResultsTable results={results} />
+          <div className="mt-6">
+            <ResultsTable results={results} />
+          </div>
         )}
-      </div>
+      </main>
 
-      {/* Footer */}
-      <footer className="border-t border-border py-6 text-center text-sm text-muted-foreground">
-        <p>Polymarket Wallet Analyzer — Powered by Polymarket public APIs</p>
+      {/* 底部 */}
+      <footer className="border-t mt-12">
+        <div className="max-w-7xl mx-auto px-4 py-4 text-center text-xs text-muted-foreground">
+          Polymarket 钱包分析工具 — 数据来源：Polymarket 公开 API
+        </div>
       </footer>
     </div>
   )

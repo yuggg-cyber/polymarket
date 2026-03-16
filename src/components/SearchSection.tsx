@@ -5,20 +5,17 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import type { WalletData, QueryProgress } from '@/types'
-import { fetchWalletData } from '@/services/polymarket'
-import { processQueue } from '@/services/queue'
+import type { QueryProgress } from '@/types'
 
 const MAX_BATCH_ADDRESSES = 100
 const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/
 
 interface SearchSectionProps {
-  setResults: React.Dispatch<React.SetStateAction<WalletData[]>>
+  onQuery: (addresses: string[]) => Promise<void>
   progress: QueryProgress
-  setProgress: React.Dispatch<React.SetStateAction<QueryProgress>>
 }
 
-export default function SearchSection({ setResults, progress, setProgress }: SearchSectionProps) {
+export function SearchSection({ onQuery, progress }: SearchSectionProps) {
   const [mode, setMode] = useState<'single' | 'batch'>('single')
   const [singleAddress, setSingleAddress] = useState('')
   const [batchAddresses, setBatchAddresses] = useState('')
@@ -33,9 +30,8 @@ export default function SearchSection({ setResults, progress, setProgress }: Sea
   const parseBatchAddresses = useCallback((text: string): string[] => {
     const raw = text
       .split(/[\n,]+/)
-      .map(s => s.trim())
-      .filter(s => s.length > 0)
-    // Deduplicate
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
     return [...new Set(raw)]
   }, [])
 
@@ -45,11 +41,13 @@ export default function SearchSection({ setResults, progress, setProgress }: Sea
     setParsedCount(addresses.length)
 
     if (addresses.length > MAX_BATCH_ADDRESSES) {
-      setBatchError(`Maximum ${MAX_BATCH_ADDRESSES} addresses allowed. Currently: ${addresses.length}`)
+      setBatchError(
+        `最多允许 ${MAX_BATCH_ADDRESSES} 个地址，当前：${addresses.length} 个`
+      )
     } else {
-      const invalid = addresses.filter(a => !validateAddress(a))
+      const invalid = addresses.filter((a) => !validateAddress(a))
       if (invalid.length > 0 && addresses.length > 0) {
-        setBatchError(`${invalid.length} invalid address(es) detected`)
+        setBatchError(`检测到 ${invalid.length} 个无效地址`)
       } else {
         setBatchError('')
       }
@@ -59,7 +57,7 @@ export default function SearchSection({ setResults, progress, setProgress }: Sea
   const handleSingleChange = (value: string) => {
     setSingleAddress(value)
     if (value.trim() && !validateAddress(value)) {
-      setSingleError('Please enter a valid Ethereum/Polygon wallet address (0x...)')
+      setSingleError('请输入合法的以太坊/Polygon 钱包地址（0x...）')
     } else {
       setSingleError('')
     }
@@ -71,70 +69,29 @@ export default function SearchSection({ setResults, progress, setProgress }: Sea
     if (mode === 'single') {
       const addr = singleAddress.trim()
       if (!validateAddress(addr)) {
-        setSingleError('Please enter a valid Ethereum/Polygon wallet address (0x...)')
+        setSingleError('请输入合法的以太坊/Polygon 钱包地址（0x...）')
         return
       }
       addresses = [addr]
     } else {
       const parsed = parseBatchAddresses(batchAddresses)
-      const invalid = parsed.filter(a => !validateAddress(a))
+      const invalid = parsed.filter((a) => !validateAddress(a))
       if (invalid.length > 0) {
-        setBatchError(`${invalid.length} invalid address(es) found. Please fix them before querying.`)
+        setBatchError(`发现 ${invalid.length} 个无效地址，请修正后重试`)
         return
       }
       if (parsed.length === 0) {
-        setBatchError('Please enter at least one wallet address')
+        setBatchError('请输入至少一个钱包地址')
         return
       }
       if (parsed.length > MAX_BATCH_ADDRESSES) {
-        setBatchError(`Maximum ${MAX_BATCH_ADDRESSES} addresses allowed`)
+        setBatchError(`最多允许 ${MAX_BATCH_ADDRESSES} 个地址`)
         return
       }
       addresses = parsed
     }
 
-    // Start query
-    setProgress({ total: addresses.length, completed: 0, isLoading: true })
-    setResults([])
-
-    // Initialize results with pending status
-    const initialResults: WalletData[] = addresses.map(addr => ({
-      address: addr,
-      totalTrades: 0,
-      totalVolume: 0,
-      totalPnL: 0,
-      roi: 0,
-      winRate: 0,
-      totalInvested: 0,
-      totalReturn: 0,
-      activeDays: 0,
-      maxSingleTradePnL: 0,
-      portfolioValue: 0,
-      status: 'pending' as const,
-    }))
-    setResults(initialResults)
-
-    // Process with concurrency control
-    await processQueue(
-      addresses,
-      async (address: string) => {
-        return await fetchWalletData(address)
-      },
-      (result: WalletData, index: number) => {
-        setResults(prev => {
-          const updated = [...prev]
-          updated[index] = result
-          return updated
-        })
-        setProgress(prev => ({
-          ...prev,
-          completed: prev.completed + 1,
-        }))
-      },
-      5 // max concurrency
-    )
-
-    setProgress(prev => ({ ...prev, isLoading: false }))
+    await onQuery(addresses)
   }
 
   const isBatchOverLimit = parsedCount > MAX_BATCH_ADDRESSES
@@ -144,7 +101,7 @@ export default function SearchSection({ setResults, progress, setProgress }: Sea
     (mode === 'batch' && (isBatchOverLimit || !!batchError || parsedCount === 0))
 
   return (
-    <div className="mx-auto mb-10 w-full max-w-3xl">
+    <div className="mx-auto w-full max-w-3xl">
       <Tabs
         value={mode}
         onValueChange={(v) => setMode(v as 'single' | 'batch')}
@@ -153,10 +110,10 @@ export default function SearchSection({ setResults, progress, setProgress }: Sea
         <div className="mb-4 flex justify-center">
           <TabsList className="bg-secondary">
             <TabsTrigger value="single" className="px-6">
-              Single Query
+              单个查询
             </TabsTrigger>
             <TabsTrigger value="batch" className="px-6">
-              Batch Query
+              批量查询
             </TabsTrigger>
           </TabsList>
         </div>
@@ -166,25 +123,25 @@ export default function SearchSection({ setResults, progress, setProgress }: Sea
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Enter wallet address (0x...)"
+                placeholder="输入钱包地址（0x...）"
                 value={singleAddress}
                 onChange={(e) => handleSingleChange(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !isQueryDisabled) handleQuery()
                 }}
-                className="h-12 pl-10 text-base bg-card border-border focus-visible:ring-primary"
+                className="h-12 pl-10 text-base bg-card border-border"
               />
             </div>
             <Button
               onClick={handleQuery}
               disabled={isQueryDisabled}
-              className="h-12 px-8 bg-primary text-primary-foreground hover:bg-primary/90"
+              className="h-12 px-8"
               size="lg"
             >
               {progress.isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                'Query'
+                '查询'
               )}
             </Button>
           </div>
@@ -199,11 +156,11 @@ export default function SearchSection({ setResults, progress, setProgress }: Sea
         <TabsContent value="batch">
           <div className="space-y-3">
             <Textarea
-              placeholder="Enter wallet addresses, one per line or comma-separated (max 100)"
+              placeholder="输入钱包地址，每行一个或用逗号分隔（最多 100 个）"
               value={batchAddresses}
               onChange={(e) => handleBatchChange(e.target.value)}
-              className="min-h-[160px] bg-card border-border text-base focus-visible:ring-primary resize-y"
-              rows={6}
+              className="min-h-[140px] bg-card border-border text-base resize-y"
+              rows={5}
             />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -215,20 +172,16 @@ export default function SearchSection({ setResults, progress, setProgress }: Sea
                 ) : (
                   <span className="text-sm text-muted-foreground">
                     {parsedCount > 0
-                      ? `${parsedCount} address(es) detected`
-                      : 'Enter addresses to begin'}
+                      ? `已检测到 ${parsedCount} 个地址`
+                      : '输入地址开始查询'}
                   </span>
                 )}
               </div>
-              <Button
-                onClick={handleQuery}
-                disabled={isQueryDisabled}
-                className="h-10 px-8 bg-primary text-primary-foreground hover:bg-primary/90"
-              >
+              <Button onClick={handleQuery} disabled={isQueryDisabled}>
                 {progress.isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  `Query${parsedCount > 0 ? ` (${parsedCount})` : ''}`
+                  `查询${parsedCount > 0 ? `（${parsedCount}）` : ''}`
                 )}
               </Button>
             </div>
@@ -236,11 +189,11 @@ export default function SearchSection({ setResults, progress, setProgress }: Sea
         </TabsContent>
       </Tabs>
 
-      {/* Progress Bar */}
+      {/* 进度条 */}
       {progress.isLoading && progress.total > 0 && (
         <div className="mt-6 space-y-2">
           <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>Querying wallets...</span>
+            <span>正在查询钱包数据...</span>
             <span>
               {progress.completed} / {progress.total}
             </span>
@@ -252,13 +205,13 @@ export default function SearchSection({ setResults, progress, setProgress }: Sea
         </div>
       )}
 
-      {/* Empty state */}
+      {/* 空状态 */}
       {!progress.isLoading && progress.total === 0 && (
-        <div className="mt-16 flex flex-col items-center text-center text-muted-foreground">
-          <Search className="mb-4 h-16 w-16 opacity-30" />
-          <p className="text-lg font-medium">Enter a wallet address to start</p>
+        <div className="mt-12 flex flex-col items-center text-center text-muted-foreground">
+          <Search className="mb-3 h-12 w-12 opacity-20" />
+          <p className="text-base font-medium">输入钱包地址开始分析</p>
           <p className="mt-1 text-sm">
-            Supports querying trade count, P&L, ROI, and 11 core metrics
+            支持查询交易次数、结算次数、活跃度、资产余额、持仓等数据
           </p>
         </div>
       )}

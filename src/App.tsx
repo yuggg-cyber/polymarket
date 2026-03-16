@@ -4,6 +4,10 @@ import { fetchWalletData } from '@/services/polymarket'
 import { createQueue } from '@/services/queue'
 import { SearchSection } from '@/components/SearchSection'
 import { ResultsTable } from '@/components/ResultsTable'
+import { AddressManager, type SavedAddress } from '@/components/AddressManager'
+
+const STORAGE_KEY_PROXY = 'polymarket_proxy'
+const STORAGE_KEY_ADDRESSES = 'polymarket_saved_addresses'
 
 const DEFAULT_PROXY: ProxyConfig = {
   enabled: false,
@@ -14,6 +18,20 @@ const DEFAULT_PROXY: ProxyConfig = {
   apiBase: '',
 }
 
+function loadFromStorage<T>(key: string, fallback: T): T {
+  try {
+    const saved = localStorage.getItem(key)
+    if (saved) return JSON.parse(saved)
+  } catch { /* ignore */ }
+  return fallback
+}
+
+function saveToStorage(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch { /* ignore */ }
+}
+
 function App() {
   const [results, setResults] = useState<WalletData[]>([])
   const [progress, setProgress] = useState<QueryProgress>({
@@ -21,22 +39,56 @@ function App() {
     completed: 0,
     isLoading: false,
   })
-  const [proxyConfig, setProxyConfig] = useState<ProxyConfig>(() => {
-    try {
-      const saved = localStorage.getItem('polymarket_proxy')
-      if (saved) return JSON.parse(saved)
-    } catch { /* ignore */ }
-    return DEFAULT_PROXY
-  })
+  const [proxyConfig, setProxyConfig] = useState<ProxyConfig>(
+    () => loadFromStorage(STORAGE_KEY_PROXY, DEFAULT_PROXY)
+  )
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(
+    () => loadFromStorage(STORAGE_KEY_ADDRESSES, [])
+  )
+
+  // 根据地址获取备注映射表（不区分大小写）
+  const getNotes = useCallback(() => {
+    const map: Record<string, string> = {}
+    for (const a of savedAddresses) {
+      if (a.note) {
+        map[a.address] = a.note
+        map[a.address.toLowerCase()] = a.note
+      }
+    }
+    return map
+  }, [savedAddresses])
 
   const handleProxyChange = useCallback((config: ProxyConfig) => {
     setProxyConfig(config)
-    try {
-      localStorage.setItem('polymarket_proxy', JSON.stringify(config))
-    } catch { /* ignore */ }
+    saveToStorage(STORAGE_KEY_PROXY, config)
+  }, [])
+
+  const handleSaveAddresses = useCallback((addresses: SavedAddress[]) => {
+    setSavedAddresses(addresses)
+    saveToStorage(STORAGE_KEY_ADDRESSES, addresses)
   }, [])
 
   const handleQuery = useCallback(async (addresses: string[]) => {
+    // 自动将查询的地址保存到地址管理器中
+    setSavedAddresses((prev) => {
+      const existingSet = new Set(prev.map((a) => a.address.toLowerCase()))
+      const newAddresses: SavedAddress[] = []
+      for (const addr of addresses) {
+        if (!existingSet.has(addr.toLowerCase())) {
+          existingSet.add(addr.toLowerCase())
+          newAddresses.push({
+            address: addr,
+            note: '',
+            addedAt: Date.now(),
+          })
+        }
+      }
+      if (newAddresses.length === 0) return prev
+      const updated = [...prev, ...newAddresses]
+      saveToStorage(STORAGE_KEY_ADDRESSES, updated)
+      return updated
+    })
+
     setResults([])
     setProgress({ total: addresses.length, completed: 0, isLoading: true })
 
@@ -121,9 +173,19 @@ function App() {
           onProxyChange={handleProxyChange}
         />
 
+        {/* 地址管理面板 */}
+        <div className="mx-auto w-full max-w-4xl">
+          <AddressManager
+            savedAddresses={savedAddresses}
+            onSave={handleSaveAddresses}
+            onQuery={handleQuery}
+            isLoading={progress.isLoading}
+          />
+        </div>
+
         {results.length > 0 && (
           <div className="mt-8">
-            <ResultsTable results={results} />
+            <ResultsTable results={results} addressNotes={getNotes()} />
           </div>
         )}
       </main>

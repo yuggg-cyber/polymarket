@@ -67,7 +67,7 @@ export function ProxySettings({ proxyConfig, onProxyChange }: ProxySettingsProps
               快速填入（粘贴一行代理信息，格式：主机:端口:用户名:密码）
             </label>
             <Input
-              placeholder="hk.stormip.cn:1000:storm-xxx_session-abc:password"
+              placeholder="proxy.example.com:8080:username:password"
               onChange={(e) => handleProxyQuickFill(e.target.value)}
               className="h-10 text-sm bg-gray-50 border-gray-200"
             />
@@ -77,7 +77,7 @@ export function ProxySettings({ proxyConfig, onProxyChange }: ProxySettingsProps
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">代理主机</label>
               <Input
-                placeholder="hk.stormip.cn"
+                placeholder="proxy.example.com"
                 value={proxyConfig.host}
                 onChange={(e) => onProxyChange({ ...proxyConfig, host: e.target.value })}
                 className="h-10 text-sm bg-gray-50 border-gray-200"
@@ -86,7 +86,7 @@ export function ProxySettings({ proxyConfig, onProxyChange }: ProxySettingsProps
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">端口</label>
               <Input
-                placeholder="1000"
+                placeholder="8080"
                 value={proxyConfig.port}
                 onChange={(e) => onProxyChange({ ...proxyConfig, port: e.target.value })}
                 className="h-10 text-sm bg-gray-50 border-gray-200"
@@ -99,7 +99,7 @@ export function ProxySettings({ proxyConfig, onProxyChange }: ProxySettingsProps
               用户名前缀（不含 _session-XXX 部分，系统会自动为每个地址生成唯一 session）
             </label>
             <Input
-              placeholder="storm-llsz66_area-HK_life-20"
+              placeholder="your-username-prefix"
               value={proxyConfig.userPrefix}
               onChange={(e) => onProxyChange({ ...proxyConfig, userPrefix: e.target.value })}
               className="h-10 text-sm bg-gray-50 border-gray-200"

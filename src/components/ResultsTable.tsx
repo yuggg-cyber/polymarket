@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   Copy,
   ExternalLink,
@@ -13,9 +13,12 @@ import {
   Download,
   MessageSquareText,
   RefreshCw,
+  Search,
+  RotateCcw,
+  ChevronDownIcon,
 } from 'lucide-react'
 import type { WalletData, Position, SortField, SortDirection } from '@/types'
-import { exportToExcel } from '@/services/export'
+import { exportToExcel, exportToCSV, exportToJSON } from '@/services/export'
 
 // ============================================================
 // 格式化工具
@@ -66,7 +69,7 @@ function SortIcon({ active, direction }: { active: boolean; direction: SortDirec
 }
 
 // ============================================================
-// 排序列定义 — 主表格共 12 列（展开 + 序号 + 地址 + 9 数据列）
+// 排序列定义 — 主表格共 13 列（checkbox + 展开 + 序号 + 地址 + 9 数据列）
 // ============================================================
 
 const SORT_COLS: { field: SortField; label: string; tip: string }[] = [
@@ -81,7 +84,7 @@ const SORT_COLS: { field: SortField; label: string; tip: string }[] = [
   { field: 'activeMonths',     label: '活跃月',   tip: '历史累计活跃月数' },
 ]
 
-const TOTAL_COLS = 3 + SORT_COLS.length // 展开按钮 + 序号 + 地址 + 9 数据列 = 12
+const TOTAL_COLS = 4 + SORT_COLS.length // checkbox + 展开按钮 + 序号 + 地址 + 9 数据列 = 13
 
 // ============================================================
 // 仓位详情行
@@ -102,7 +105,7 @@ function PositionDetailRows({ positions }: { positions: Position[] }) {
     <>
       {/* 子表头 */}
       <tr className="bg-blue-50/60 border-b border-blue-100">
-        <td colSpan={3} className="px-4 py-2.5 text-sm font-semibold text-blue-700">
+        <td colSpan={4} className="px-4 py-2.5 text-sm font-semibold text-blue-700">
           持仓明细
         </td>
         <td className="px-3 py-2.5 text-sm font-semibold text-gray-500">方向</td>
@@ -119,8 +122,7 @@ function PositionDetailRows({ positions }: { positions: Position[] }) {
         const pnlColor = pos.cashPnl >= 0 ? 'text-emerald-600' : 'text-red-500'
         return (
           <tr key={idx} className="bg-gray-50/40 hover:bg-gray-100/60 border-b border-gray-100">
-            {/* 市场名称占前三列 — 可点击跳转到 Polymarket 预测页面 */}
-            <td colSpan={3} className="px-4 py-2.5">
+            <td colSpan={4} className="px-4 py-2.5">
               <a
                 href={pos.eventSlug ? `https://polymarket.com/event/${pos.eventSlug}` : (pos.slug ? `https://polymarket.com/event/${pos.slug}` : '#')}
                 target="_blank"
@@ -223,6 +225,7 @@ interface ResultsTableProps {
   isLoading?: boolean
   onRefreshSingle?: (address: string) => Promise<void>
   onRefreshAll?: () => Promise<void>
+  onRetryFailed?: () => Promise<void>
 }
 
 export function ResultsTable({
@@ -231,12 +234,16 @@ export function ResultsTable({
   isLoading = false,
   onRefreshSingle,
   onRefreshAll,
+  onRetryFailed,
 }: ResultsTableProps) {
   const [sortField, setSortField]       = useState<SortField>('index')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [copiedAddr, setCopiedAddr]     = useState<string | null>(null)
   const [refreshingAddr, setRefreshingAddr] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery]   = useState('')
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -273,40 +280,107 @@ export function ResultsTable({
     }
   }
 
-  // 构建原始地址到序号的映射（按输入顺序）
-  const addressIndexMap = new Map<string, number>()
-  results.forEach((r, i) => {
-    addressIndexMap.set(r.address, i + 1)
-  })
+  // 行选择
+  const toggleSelectRow = (addr: string) => {
+    setSelectedRows((prev) => {
+      const next = new Set(prev)
+      next.has(addr) ? next.delete(addr) : next.add(addr)
+      return next
+    })
+  }
 
-  const sorted = [...results].sort((a, b) => {
-    if (a.status !== 'success' && b.status === 'success') return 1
-    if (a.status === 'success' && b.status !== 'success') return -1
-    if (sortField === 'index') {
-      const ai = addressIndexMap.get(a.address) ?? 0
-      const bi = addressIndexMap.get(b.address) ?? 0
-      return sortDirection === 'asc' ? ai - bi : bi - ai
+  const toggleSelectAll = () => {
+    if (selectedRows.size === results.length) {
+      setSelectedRows(new Set())
+    } else {
+      setSelectedRows(new Set(results.map((r) => r.address)))
     }
-    const av = (a[sortField] as number) ?? -1
-    const bv = (b[sortField] as number) ?? -1
-    return sortDirection === 'asc' ? av - bv : bv - av
-  })
+  }
+
+  // 构建原始地址到序号的映射（按输入顺序）
+  const addressIndexMap = useMemo(() => {
+    const map = new Map<string, number>()
+    results.forEach((r, i) => {
+      map.set(r.address, i + 1)
+    })
+    return map
+  }, [results])
+
+  // 搜索过滤
+  const filtered = useMemo(() => {
+    if (!searchQuery.trim()) return results
+    const q = searchQuery.trim().toLowerCase()
+    return results.filter((r) => {
+      // 按地址搜索
+      if (r.address.toLowerCase().includes(q)) return true
+      // 按备注搜索
+      const note = addressNotes[r.address] || addressNotes[r.address.toLowerCase()] || ''
+      if (note.toLowerCase().includes(q)) return true
+      // 按序号搜索
+      const idx = addressIndexMap.get(r.address) ?? 0
+      if (String(idx) === q) return true
+      return false
+    })
+  }, [results, searchQuery, addressNotes, addressIndexMap])
+
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      if (a.status !== 'success' && b.status === 'success') return 1
+      if (a.status === 'success' && b.status !== 'success') return -1
+      if (sortField === 'index') {
+        const ai = addressIndexMap.get(a.address) ?? 0
+        const bi = addressIndexMap.get(b.address) ?? 0
+        return sortDirection === 'asc' ? ai - bi : bi - ai
+      }
+      const av = (a[sortField] as number) ?? -1
+      const bv = (b[sortField] as number) ?? -1
+      return sortDirection === 'asc' ? av - bv : bv - av
+    })
+  }, [filtered, sortField, sortDirection, addressIndexMap])
 
   const okCount = results.filter((r) => r.status === 'success').length
+  const errorCount = results.filter((r) => r.status === 'error').length
+
+  // 导出相关
+  const getExportData = () => {
+    if (selectedRows.size > 0) {
+      return results.filter((r) => selectedRows.has(r.address))
+    }
+    return results
+  }
+
+  const handleExport = (format: 'excel' | 'csv' | 'json') => {
+    const data = getExportData()
+    if (format === 'excel') exportToExcel(data, addressNotes, addressIndexMap)
+    else if (format === 'csv') exportToCSV(data, addressNotes, addressIndexMap)
+    else exportToJSON(data, addressNotes, addressIndexMap)
+    setExportMenuOpen(false)
+  }
 
   const rows: React.ReactNode[] = []
   for (const wallet of sorted) {
     const isExpanded = expandedRows.has(wallet.address)
     const hasPos     = wallet.positions && wallet.positions.length > 0
     const pnl        = formatPnL(wallet.profit)
-    const isRefreshing = refreshingAddr === wallet.address || wallet.status === 'loading'
+    const isRefreshing = refreshingAddr === wallet.address
     const rowIndex = addressIndexMap.get(wallet.address) ?? 0
+    const isSelected = selectedRows.has(wallet.address)
 
     rows.push(
       <tr
         key={wallet.address}
-        className={`border-b border-gray-100 hover:bg-gray-50/80 transition-colors ${isExpanded ? 'bg-blue-50/30' : ''}`}
+        className={`border-b border-gray-100 hover:bg-gray-50/80 transition-colors ${isExpanded ? 'bg-blue-50/30' : ''} ${isSelected ? 'bg-blue-50/50' : ''}`}
       >
+        {/* Checkbox */}
+        <td className="w-10 px-2 py-3 text-center">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => toggleSelectRow(wallet.address)}
+            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+          />
+        </td>
+
         {/* 展开按钮 */}
         <td className="w-10 px-2 py-3 text-center">
           {wallet.status === 'success' && (
@@ -330,7 +404,7 @@ export function ResultsTable({
         {/* 地址 + 操作按钮 + 代理 IP */}
         <td className="px-3 py-3 min-w-[200px]">
           <div className="flex items-center gap-1.5">
-            {(wallet.status === 'loading' || wallet.status === 'pending') && (
+            {wallet.status === 'loading' && (
               <Loader2 className="w-4 h-4 animate-spin text-blue-500 flex-shrink-0" />
             )}
             {wallet.status === 'error' && (
@@ -379,7 +453,7 @@ export function ResultsTable({
               </span>
             )}
           </div>
-          {/* 代理出口 IP 显示在地址下方（成功和失败状态都显示） */}
+          {/* 代理出口 IP 显示在地址下方 */}
           {wallet.proxyIp && (wallet.status === 'success' || wallet.status === 'error') && (
             <div className="flex items-center gap-1 mt-1">
               <Globe className="w-3 h-3 text-blue-400 flex-shrink-0" />
@@ -393,8 +467,8 @@ export function ResultsTable({
           )}
         </td>
 
-        {/* 数据列 */}
-        {wallet.status === 'loading' || wallet.status === 'pending' ? (
+        {/* 数据列 — loading 时显示旋转图标覆盖在旧数据上 */}
+        {wallet.status === 'loading' ? (
           <td colSpan={9} className="px-3 py-3 text-center text-gray-400">
             <span className="inline-flex items-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin" /> 加载中...
@@ -430,18 +504,57 @@ export function ResultsTable({
     }
   }
 
+  const isAllSelected = results.length > 0 && selectedRows.size === results.length
+  const isPartialSelected = selectedRows.size > 0 && selectedRows.size < results.length
+
   return (
     <div className="space-y-5">
       <SummaryCards results={results} />
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-baseline gap-3">
           <h2 className="text-lg font-bold text-gray-900">查询结果</h2>
           <span className="text-sm text-gray-500">
             已查询 {results.length} 个地址，成功 {okCount} 个
+            {errorCount > 0 && (
+              <span className="text-red-500 ml-1">，失败 {errorCount} 个</span>
+            )}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* 搜索框 */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索地址 / 备注 / 序号"
+              className="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-56 transition-colors"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-100"
+              >
+                <span className="text-gray-400 text-xs">&#x2715;</span>
+              </button>
+            )}
+          </div>
+
+          {/* 重试失败按钮 */}
+          {onRetryFailed && errorCount > 0 && !isLoading && (
+            <button
+              onClick={onRetryFailed}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors shadow-sm"
+              title={`重新查询 ${errorCount} 个失败地址`}
+            >
+              <RotateCcw className="w-4 h-4" />
+              重试失败 ({errorCount})
+            </button>
+          )}
+
           {/* 刷新全部按钮 */}
           {onRefreshAll && results.length > 0 && (
             <button
@@ -454,25 +567,83 @@ export function ResultsTable({
               刷新全部
             </button>
           )}
-          {/* 导出数据按钮 */}
+
+          {/* 导出下拉菜单 */}
           {okCount > 0 && (
-            <button
-              onClick={() => exportToExcel(results, addressNotes)}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors shadow-sm"
-              title="导出为 Excel 文件"
-            >
-              <Download className="w-4 h-4" />
-              导出数据
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setExportMenuOpen(!exportMenuOpen)}
+                onBlur={() => setTimeout(() => setExportMenuOpen(false), 200)}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors shadow-sm"
+                title="导出数据"
+              >
+                <Download className="w-4 h-4" />
+                导出{selectedRows.size > 0 ? ` (${selectedRows.size})` : ''}
+                <ChevronDownIcon className="w-3.5 h-3.5 text-gray-400" />
+              </button>
+              {exportMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleExport('excel')}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-between"
+                  >
+                    <span>Excel (.xlsx)</span>
+                    <span className="text-xs text-gray-400">推荐</span>
+                  </button>
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleExport('csv')}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    CSV (.csv)
+                  </button>
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleExport('json')}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    JSON (.json)
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
+
+      {/* 选中提示 */}
+      {selectedRows.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+          <span className="text-blue-700">
+            已选择 <strong>{selectedRows.size}</strong> 个地址
+          </span>
+          <button
+            onClick={() => setSelectedRows(new Set())}
+            className="text-blue-600 hover:text-blue-800 underline transition-colors"
+          >
+            取消选择
+          </button>
+          <span className="text-blue-400">|</span>
+          <span className="text-blue-500">导出时将只导出选中的地址</span>
+        </div>
+      )}
 
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b-2 border-gray-200">
+                {/* 全选 checkbox */}
+                <th className="w-10 px-2 py-3">
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected}
+                    ref={(el) => { if (el) el.indeterminate = isPartialSelected }}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                </th>
                 <th className="w-10 px-2 py-3"></th>
                 <th className="w-12 px-2 py-3 text-center whitespace-nowrap">
                   <button

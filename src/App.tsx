@@ -105,14 +105,12 @@ function App() {
     setResults(initialResults)
 
     // 使用并发队列（代理模式并发 8，直连模式并发 5）
-    // lb-api 限速由令牌桶控制，无需在钱包级别过度限制
     const concurrency = proxyConfig.enabled ? 8 : 5
     const queue = createQueue(concurrency)
     let completed = 0
 
     const tasks = addresses.map((addr, idx) =>
       queue.add(async () => {
-        // 非首个请求前加延迟，避免 API 限流
         if (idx > 0) {
           await sleep(REQUEST_DELAY_MS)
         }
@@ -133,17 +131,8 @@ function App() {
     setProgress((prev) => ({ ...prev, isLoading: false }))
   }, [proxyConfig])
 
-  /** 刷新单个地址的数据 */
+  /** 刷新单个地址的数据 — 保留旧数据显示，不设为 loading 隐藏 */
   const handleRefreshSingle = useCallback(async (address: string) => {
-    // 将该地址状态设为 loading
-    setResults((prev) =>
-      prev.map((r) =>
-        r.address === address
-          ? { ...r, status: 'loading' as const, errorMessage: undefined }
-          : r
-      )
-    )
-
     const data = await fetchWalletData(
       address,
       proxyConfig.enabled ? proxyConfig : undefined
@@ -160,6 +149,53 @@ function App() {
     const addresses = results.map((r) => r.address)
     await handleQuery(addresses)
   }, [results, handleQuery])
+
+  /** 重试所有失败的地址 */
+  const handleRetryFailed = useCallback(async () => {
+    const failedAddresses = results.filter((r) => r.status === 'error')
+    if (failedAddresses.length === 0) return
+
+    setProgress((prev) => ({
+      ...prev,
+      total: failedAddresses.length,
+      completed: 0,
+      isLoading: true,
+    }))
+
+    // 将失败地址状态设为 loading（保留其他地址数据不变）
+    setResults((prev) =>
+      prev.map((r) =>
+        r.status === 'error'
+          ? { ...r, status: 'loading' as const, errorMessage: undefined }
+          : r
+      )
+    )
+
+    const concurrency = proxyConfig.enabled ? 8 : 5
+    const queue = createQueue(concurrency)
+    let completed = 0
+
+    const tasks = failedAddresses.map((wallet, idx) =>
+      queue.add(async () => {
+        if (idx > 0) {
+          await sleep(REQUEST_DELAY_MS)
+        }
+        const data = await fetchWalletData(
+          wallet.address,
+          proxyConfig.enabled ? proxyConfig : undefined
+        )
+        completed++
+        setProgress((prev) => ({ ...prev, completed }))
+        setResults((prev) =>
+          prev.map((r) => (r.address === wallet.address ? data : r))
+        )
+        return data
+      })
+    )
+
+    await Promise.allSettled(tasks)
+    setProgress((prev) => ({ ...prev, isLoading: false }))
+  }, [results, proxyConfig])
 
   return (
     <div className="min-h-screen bg-[#f8f9fa]">
@@ -246,12 +282,11 @@ function App() {
               isLoading={progress.isLoading}
               onRefreshSingle={handleRefreshSingle}
               onRefreshAll={handleRefreshAll}
+              onRetryFailed={handleRetryFailed}
             />
           </div>
         )}
       </main>
-
-
     </div>
   )
 }

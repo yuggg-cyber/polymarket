@@ -2,6 +2,7 @@
 export interface Position {
   title: string
   slug: string
+  eventSlug: string
   icon: string
   outcome: string
   size: number

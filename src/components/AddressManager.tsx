@@ -185,7 +185,7 @@ export function AddressManager({
                 className="h-9 px-4 text-sm bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 <RefreshCw className={`w-4 h-4 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
-                刷新查询全部
+                查询已保存地址
               </Button>
               <Button
                 onClick={handleClearAll}

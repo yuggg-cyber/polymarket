@@ -375,6 +375,7 @@ export default async function handler(req, res) {
     const positions = (openPositions || []).map((p) => ({
       title: p.title,
       slug: p.slug,
+      eventSlug: p.eventSlug || '',
       icon: p.icon,
       outcome: p.outcome,
       size: p.size,

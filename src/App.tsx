@@ -9,6 +9,9 @@ import { AddressManager, type SavedAddress } from '@/components/AddressManager'
 const STORAGE_KEY_PROXY = 'polymarket_proxy'
 const STORAGE_KEY_ADDRESSES = 'polymarket_saved_addresses'
 
+/** 每个请求之间的延迟（毫秒），避免触发 API 限流 */
+const REQUEST_DELAY_MS = 800
+
 const DEFAULT_PROXY: ProxyConfig = {
   enabled: false,
   host: '',
@@ -30,6 +33,11 @@ function saveToStorage(key: string, value: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(value))
   } catch { /* ignore */ }
+}
+
+/** 延迟工具函数 */
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function App() {
@@ -68,27 +76,8 @@ function App() {
     saveToStorage(STORAGE_KEY_ADDRESSES, addresses)
   }, [])
 
+  /** 批量查询多个地址（带延迟防限流） */
   const handleQuery = useCallback(async (addresses: string[]) => {
-    // 自动将查询的地址保存到地址管理器中
-    setSavedAddresses((prev) => {
-      const existingSet = new Set(prev.map((a) => a.address.toLowerCase()))
-      const newAddresses: SavedAddress[] = []
-      for (const addr of addresses) {
-        if (!existingSet.has(addr.toLowerCase())) {
-          existingSet.add(addr.toLowerCase())
-          newAddresses.push({
-            address: addr,
-            note: '',
-            addedAt: Date.now(),
-          })
-        }
-      }
-      if (newAddresses.length === 0) return prev
-      const updated = [...prev, ...newAddresses]
-      saveToStorage(STORAGE_KEY_ADDRESSES, updated)
-      return updated
-    })
-
     setResults([])
     setProgress({ total: addresses.length, completed: 0, isLoading: true })
 
@@ -109,13 +98,17 @@ function App() {
     }))
     setResults(initialResults)
 
-    // 使用并发队列（代理模式并发 5，直连模式并发 3）
-    const concurrency = proxyConfig.enabled ? 5 : 3
+    // 使用并发队列（代理模式并发 3，直连模式并发 2）+ 延迟
+    const concurrency = proxyConfig.enabled ? 3 : 2
     const queue = createQueue(concurrency)
     let completed = 0
 
-    const tasks = addresses.map((addr) =>
+    const tasks = addresses.map((addr, idx) =>
       queue.add(async () => {
+        // 非首个请求前加延迟，避免 API 限流
+        if (idx > 0) {
+          await sleep(REQUEST_DELAY_MS)
+        }
         const data = await fetchWalletData(
           addr,
           proxyConfig.enabled ? proxyConfig : undefined
@@ -132,6 +125,34 @@ function App() {
     await Promise.allSettled(tasks)
     setProgress((prev) => ({ ...prev, isLoading: false }))
   }, [proxyConfig])
+
+  /** 刷新单个地址的数据 */
+  const handleRefreshSingle = useCallback(async (address: string) => {
+    // 将该地址状态设为 loading
+    setResults((prev) =>
+      prev.map((r) =>
+        r.address === address
+          ? { ...r, status: 'loading' as const, errorMessage: undefined }
+          : r
+      )
+    )
+
+    const data = await fetchWalletData(
+      address,
+      proxyConfig.enabled ? proxyConfig : undefined
+    )
+
+    setResults((prev) =>
+      prev.map((r) => (r.address === address ? data : r))
+    )
+  }, [proxyConfig])
+
+  /** 刷新查询所有当前结果中的地址 */
+  const handleRefreshAll = useCallback(async () => {
+    if (results.length === 0) return
+    const addresses = results.map((r) => r.address)
+    await handleQuery(addresses)
+  }, [results, handleQuery])
 
   return (
     <div className="min-h-screen bg-[#f8f9fa]">
@@ -185,7 +206,13 @@ function App() {
 
         {results.length > 0 && (
           <div className="mt-8">
-            <ResultsTable results={results} addressNotes={getNotes()} />
+            <ResultsTable
+              results={results}
+              addressNotes={getNotes()}
+              isLoading={progress.isLoading}
+              onRefreshSingle={handleRefreshSingle}
+              onRefreshAll={handleRefreshAll}
+            />
           </div>
         )}
       </main>

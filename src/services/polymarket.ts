@@ -60,6 +60,7 @@ interface PositionItem {
   mergeable: boolean
   title: string
   slug: string
+  eventSlug?: string
   icon: string
   outcome: string
   endDate: string
@@ -305,6 +306,7 @@ async function fetchWalletDataDirect(address: string): Promise<WalletData> {
   const positions: Position[] = openPositions.map((p) => ({
     title: p.title,
     slug: p.slug,
+    eventSlug: p.eventSlug || '',
     icon: p.icon,
     outcome: p.outcome,
     size: p.size,

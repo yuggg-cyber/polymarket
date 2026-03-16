@@ -63,6 +63,20 @@
   }
 }
 
+/* 抽屉滑入动画 */
+@keyframes slide-in-from-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-in.slide-in-from-right {
+  animation: slide-in-from-right 0.3s ease-out;
+}
+
 /* 表格优化 */
 table {
   border-collapse: collapse;

@@ -5,6 +5,8 @@ import { createQueue } from '@/services/queue'
 import { SearchSection } from '@/components/SearchSection'
 import { ResultsTable } from '@/components/ResultsTable'
 import { AddressManager, type SavedAddress } from '@/components/AddressManager'
+import { ProxySettings } from '@/components/ProxySettings'
+import { Drawer } from '@/components/ui/drawer'
 
 const STORAGE_KEY_PROXY = 'polymarket_proxy'
 const STORAGE_KEY_ADDRESSES = 'polymarket_saved_addresses'
@@ -53,6 +55,10 @@ function App() {
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(
     () => loadFromStorage(STORAGE_KEY_ADDRESSES, [])
   )
+
+  // 抽屉状态
+  const [proxyDrawerOpen, setProxyDrawerOpen] = useState(false)
+  const [addressDrawerOpen, setAddressDrawerOpen] = useState(false)
 
   // 根据地址获取备注映射表（不区分大小写）
   const getNotes = useCallback(() => {
@@ -174,7 +180,7 @@ function App() {
               />
             </svg>
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-xl font-bold text-gray-900">
               Polymarket 钱包分析工具
             </h1>
@@ -182,8 +188,61 @@ function App() {
               批量查询和分析 Polymarket 钱包地址的交易数据
             </p>
           </div>
+
+          {/* 右侧功能按钮 */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setProxyDrawerOpen(true)}
+              className="relative px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors"
+            >
+              代理设置
+              {proxyConfig.enabled && (
+                <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+              )}
+            </button>
+            <button
+              onClick={() => setAddressDrawerOpen(true)}
+              className="relative px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors"
+            >
+              地址管理
+              {savedAddresses.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 flex items-center justify-center text-xs font-bold text-white bg-amber-500 rounded-full border-2 border-white">
+                  {savedAddresses.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </header>
+
+      {/* 代理设置抽屉 */}
+      <Drawer
+        open={proxyDrawerOpen}
+        onClose={() => setProxyDrawerOpen(false)}
+        title="代理设置"
+      >
+        <ProxySettings
+          proxyConfig={proxyConfig}
+          onProxyChange={handleProxyChange}
+        />
+      </Drawer>
+
+      {/* 地址管理抽屉 */}
+      <Drawer
+        open={addressDrawerOpen}
+        onClose={() => setAddressDrawerOpen(false)}
+        title="地址管理"
+      >
+        <AddressManager
+          savedAddresses={savedAddresses}
+          onSave={handleSaveAddresses}
+          onQuery={(addresses) => {
+            setAddressDrawerOpen(false)
+            return handleQuery(addresses)
+          }}
+          isLoading={progress.isLoading}
+        />
+      </Drawer>
 
       {/* 主内容区 */}
       <main className="max-w-[1400px] mx-auto px-6 py-8">
@@ -191,18 +250,7 @@ function App() {
           onQuery={handleQuery}
           progress={progress}
           proxyConfig={proxyConfig}
-          onProxyChange={handleProxyChange}
         />
-
-        {/* 地址管理面板 */}
-        <div className="mx-auto w-full max-w-4xl">
-          <AddressManager
-            savedAddresses={savedAddresses}
-            onSave={handleSaveAddresses}
-            onQuery={handleQuery}
-            isLoading={progress.isLoading}
-          />
-        </div>
 
         {results.length > 0 && (
           <div className="mt-8">

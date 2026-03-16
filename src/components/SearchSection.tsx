@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Search, AlertCircle, Loader2, Shield, ShieldOff, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, AlertCircle, Loader2 } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -14,17 +14,15 @@ interface SearchSectionProps {
   onQuery: (addresses: string[]) => Promise<void>
   progress: QueryProgress
   proxyConfig: ProxyConfig
-  onProxyChange: (config: ProxyConfig) => void
 }
 
-export function SearchSection({ onQuery, progress, proxyConfig, onProxyChange }: SearchSectionProps) {
+export function SearchSection({ onQuery, progress, proxyConfig }: SearchSectionProps) {
   const [mode, setMode] = useState<'single' | 'batch'>('single')
   const [singleAddress, setSingleAddress] = useState('')
   const [batchAddresses, setBatchAddresses] = useState('')
   const [singleError, setSingleError] = useState('')
   const [batchError, setBatchError] = useState('')
   const [parsedCount, setParsedCount] = useState(0)
-  const [showProxy, setShowProxy] = useState(false)
 
   const validateAddress = (addr: string): boolean => {
     return ETH_ADDRESS_REGEX.test(addr.trim())
@@ -97,40 +95,11 @@ export function SearchSection({ onQuery, progress, proxyConfig, onProxyChange }:
     await onQuery(addresses)
   }
 
-  // 解析代理字符串格式：host:port:user:pass
-  const handleProxyQuickFill = (text: string) => {
-    const line = text.trim().split('\n')[0]?.trim()
-    if (!line) return
-
-    const parts = line.split(':')
-    if (parts.length >= 4) {
-      const host = parts[0]
-      const port = parts[1]
-      // 用户名可能包含冒号，密码是最后一个部分
-      const pass = parts[parts.length - 1]
-      const user = parts.slice(2, parts.length - 1).join(':')
-
-      // 提取 userPrefix（去掉 _session-XXX 部分）
-      const sessionMatch = user.match(/^(.+?)_session-[A-Za-z0-9]+$/)
-      const userPrefix = sessionMatch ? sessionMatch[1] : user
-
-      onProxyChange({
-        ...proxyConfig,
-        host,
-        port,
-        userPrefix,
-        password: pass,
-      })
-    }
-  }
-
   const isBatchOverLimit = parsedCount > MAX_BATCH_ADDRESSES
   const isQueryDisabled =
     progress.isLoading ||
     (mode === 'single' && (!singleAddress.trim() || !!singleError)) ||
     (mode === 'batch' && (isBatchOverLimit || !!batchError || parsedCount === 0))
-
-  const proxyReady = proxyConfig.enabled && proxyConfig.host && proxyConfig.apiBase
 
   return (
     <div className="mx-auto w-full max-w-4xl">
@@ -230,135 +199,6 @@ export function SearchSection({ onQuery, progress, proxyConfig, onProxyChange }:
           </div>
         </TabsContent>
       </Tabs>
-
-      {/* 代理配置面板 */}
-      <div className="mt-6">
-        <button
-          onClick={() => setShowProxy(!showProxy)}
-          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          {proxyConfig.enabled ? (
-            <Shield className="h-4 w-4 text-green-500" />
-          ) : (
-            <ShieldOff className="h-4 w-4 text-gray-400" />
-          )}
-          <span>代理设置</span>
-          {proxyConfig.enabled && (
-            <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">已启用</span>
-          )}
-          {showProxy ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </button>
-
-        {showProxy && (
-          <div className="mt-3 p-5 bg-white rounded-xl border border-gray-200 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-700">启用代理模式</p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  每个地址使用不同代理 IP 查询，防止同 IP 批量查询风险
-                </p>
-              </div>
-              <button
-                onClick={() => onProxyChange({ ...proxyConfig, enabled: !proxyConfig.enabled })}
-                className={`relative w-11 h-6 rounded-full transition-colors ${
-                  proxyConfig.enabled ? 'bg-green-500' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                    proxyConfig.enabled ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {proxyConfig.enabled && (
-              <>
-                {/* 快速填入 */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                    快速填入（粘贴一行代理信息，格式：主机:端口:用户名:密码）
-                  </label>
-                  <Input
-                    placeholder="hk.stormip.cn:1000:storm-xxx_session-abc:password"
-                    onChange={(e) => handleProxyQuickFill(e.target.value)}
-                    className="h-10 text-sm bg-gray-50 border-gray-200"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5">代理主机</label>
-                    <Input
-                      placeholder="hk.stormip.cn"
-                      value={proxyConfig.host}
-                      onChange={(e) => onProxyChange({ ...proxyConfig, host: e.target.value })}
-                      className="h-10 text-sm bg-gray-50 border-gray-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5">代理端口</label>
-                    <Input
-                      placeholder="1000"
-                      value={proxyConfig.port}
-                      onChange={(e) => onProxyChange({ ...proxyConfig, port: e.target.value })}
-                      className="h-10 text-sm bg-gray-50 border-gray-200"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                    用户名前缀（不含 _session-XXX 部分，系统会自动为每个地址生成唯一 session）
-                  </label>
-                  <Input
-                    placeholder="storm-llsz66_area-HK_life-20"
-                    value={proxyConfig.userPrefix}
-                    onChange={(e) => onProxyChange({ ...proxyConfig, userPrefix: e.target.value })}
-                    className="h-10 text-sm bg-gray-50 border-gray-200"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">密码</label>
-                  <Input
-                    type="password"
-                    placeholder="代理密码"
-                    value={proxyConfig.password}
-                    onChange={(e) => onProxyChange({ ...proxyConfig, password: e.target.value })}
-                    className="h-10 text-sm bg-gray-50 border-gray-200"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                    API 服务地址（Vercel 部署后的域名）
-                  </label>
-                  <Input
-                    placeholder="your-project.vercel.app"
-                    value={proxyConfig.apiBase}
-                    onChange={(e) => onProxyChange({ ...proxyConfig, apiBase: e.target.value })}
-                    className="h-10 text-sm bg-gray-50 border-gray-200"
-                  />
-                </div>
-
-                {/* 状态提示 */}
-                {proxyReady ? (
-                  <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg">
-                    <Shield className="h-4 w-4" />
-                    代理已配置，每个查询地址将使用独立的代理 IP
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">
-                    <AlertCircle className="h-4 w-4" />
-                    请填写完整的代理信息和 API 服务地址
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* 进度条 */}
       {progress.isLoading && progress.total > 0 && (

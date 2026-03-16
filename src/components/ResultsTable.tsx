@@ -66,7 +66,7 @@ function SortIcon({ active, direction }: { active: boolean; direction: SortDirec
 }
 
 // ============================================================
-// 排序列定义 — 主表格共 11 列（展开 + 地址 + 9 数据列）
+// 排序列定义 — 主表格共 12 列（展开 + 序号 + 地址 + 9 数据列）
 // ============================================================
 
 const SORT_COLS: { field: SortField; label: string; tip: string }[] = [
@@ -81,7 +81,7 @@ const SORT_COLS: { field: SortField; label: string; tip: string }[] = [
   { field: 'activeMonths',     label: '活跃月',   tip: '历史累计活跃月数' },
 ]
 
-const TOTAL_COLS = 2 + SORT_COLS.length // 展开按钮 + 地址 + 9 数据列 = 11
+const TOTAL_COLS = 3 + SORT_COLS.length // 展开按钮 + 序号 + 地址 + 9 数据列 = 12
 
 // ============================================================
 // 仓位详情行
@@ -102,7 +102,7 @@ function PositionDetailRows({ positions }: { positions: Position[] }) {
     <>
       {/* 子表头 */}
       <tr className="bg-blue-50/60 border-b border-blue-100">
-        <td colSpan={2} className="px-4 py-2.5 text-sm font-semibold text-blue-700">
+        <td colSpan={3} className="px-4 py-2.5 text-sm font-semibold text-blue-700">
           持仓明细
         </td>
         <td className="px-3 py-2.5 text-sm font-semibold text-gray-500">方向</td>
@@ -119,13 +119,13 @@ function PositionDetailRows({ positions }: { positions: Position[] }) {
         const pnlColor = pos.cashPnl >= 0 ? 'text-emerald-600' : 'text-red-500'
         return (
           <tr key={idx} className="bg-gray-50/40 hover:bg-gray-100/60 border-b border-gray-100">
-            {/* 市场名称占前两列 — 可点击跳转到 Polymarket 预测页面 */}
-            <td colSpan={2} className="px-4 py-2.5">
+            {/* 市场名称占前三列 — 可点击跳转到 Polymarket 预测页面 */}
+            <td colSpan={3} className="px-4 py-2.5">
               <a
                 href={pos.eventSlug ? `https://polymarket.com/event/${pos.eventSlug}` : (pos.slug ? `https://polymarket.com/event/${pos.slug}` : '#')}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 max-w-[280px] group hover:opacity-80 transition-opacity"
+                className="flex items-center gap-2 max-w-[320px] group hover:opacity-80 transition-opacity"
                 title={(pos.eventSlug || pos.slug) ? `查看预测市场：${pos.title}` : pos.title}
               >
                 {pos.icon && (
@@ -283,12 +283,19 @@ export function ResultsTable({
 
   const okCount = results.filter((r) => r.status === 'success').length
 
+  // 构建原始地址到序号的映射（按输入顺序）
+  const addressIndexMap = new Map<string, number>()
+  results.forEach((r, i) => {
+    addressIndexMap.set(r.address, i + 1)
+  })
+
   const rows: React.ReactNode[] = []
   for (const wallet of sorted) {
     const isExpanded = expandedRows.has(wallet.address)
     const hasPos     = wallet.positions && wallet.positions.length > 0
     const pnl        = formatPnL(wallet.profit)
     const isRefreshing = refreshingAddr === wallet.address || wallet.status === 'loading'
+    const rowIndex = addressIndexMap.get(wallet.address) ?? 0
 
     rows.push(
       <tr
@@ -308,6 +315,11 @@ export function ResultsTable({
                 : <ChevronRight className="w-4 h-4 text-gray-400" />}
             </button>
           )}
+        </td>
+
+        {/* 序号 */}
+        <td className="w-12 px-2 py-3 text-center text-sm text-gray-400 font-mono">
+          {rowIndex}
         </td>
 
         {/* 地址 + 操作按钮 + 代理 IP */}
@@ -457,6 +469,7 @@ export function ResultsTable({
             <thead>
               <tr className="bg-gray-50 border-b-2 border-gray-200">
                 <th className="w-10 px-2 py-3"></th>
+                <th className="w-12 px-2 py-3 text-center text-sm font-semibold text-gray-600">#</th>
                 <th className="px-3 py-3 text-left text-sm font-semibold text-gray-600 whitespace-nowrap">
                   地址
                 </th>

@@ -5,9 +5,6 @@ import {
   Check,
   X,
   RefreshCw,
-  ChevronDown,
-  ChevronUp,
-  Bookmark,
   Plus,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -35,7 +32,6 @@ export function AddressManager({
   onQuery,
   isLoading,
 }: AddressManagerProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
   const [addInput, setAddInput] = useState('')
   const [addError, setAddError] = useState('')
   const [editingAddr, setEditingAddr] = useState<string | null>(null)
@@ -130,161 +126,147 @@ export function AddressManager({
   }
 
   return (
-    <div className="mt-8">
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-2.5 text-base text-gray-600 hover:text-gray-800 transition-colors font-medium"
-      >
-        <Bookmark className="h-5 w-5 text-amber-500" />
-        <span>地址管理</span>
-        {savedAddresses.length > 0 && (
-          <span className="text-sm px-2.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-medium">
-            {savedAddresses.length} 个地址
-          </span>
-        )}
-        {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-      </button>
-
-      {isExpanded && (
-        <div className="mt-4 p-6 bg-white rounded-xl border border-gray-200 shadow-sm space-y-5">
-          {/* 添加地址区域 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-2">
-              添加地址（每行一个或用逗号分隔）
-            </label>
-            <div className="flex gap-3">
-              <Textarea
-                placeholder="输入钱包地址，每行一个或用逗号分隔"
-                value={addInput}
-                onChange={(e) => {
-                  setAddInput(e.target.value)
-                  setAddError('')
-                }}
-                className="min-h-[72px] text-sm bg-gray-50 border-gray-200 resize-y"
-                rows={2}
-              />
-              <Button
-                onClick={handleAdd}
-                className="h-auto px-5 bg-blue-600 hover:bg-blue-700 text-white self-end text-sm"
-              >
-                <Plus className="w-4 h-4 mr-1.5" />
-                添加
-              </Button>
-            </div>
-            {addError && (
-              <p className="text-sm text-red-500 mt-1.5">{addError}</p>
-            )}
-          </div>
-
-          {/* 操作按钮 */}
-          {savedAddresses.length > 0 && (
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={handleRefreshAll}
-                disabled={isLoading}
-                className="h-9 px-4 text-sm bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                <RefreshCw className={`w-4 h-4 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
-                查询已保存地址
-              </Button>
-              <Button
-                onClick={handleClearAll}
-                variant="outline"
-                className="h-9 px-4 text-sm text-red-500 border-red-200 hover:bg-red-50"
-              >
-                <Trash2 className="w-4 h-4 mr-1.5" />
-                清空全部
-              </Button>
-              <span className="text-sm text-gray-400 ml-auto">
-                共 {savedAddresses.length} 个地址，数据自动保存在浏览器中
-              </span>
-            </div>
+    <div className="space-y-5">
+      {/* 添加地址区域 */}
+      <div>
+        <label className="block text-sm font-medium text-gray-600 mb-2">
+          添加地址（每行一个或用逗号分隔）
+        </label>
+        <Textarea
+          placeholder="输入钱包地址，每行一个或用逗号分隔"
+          value={addInput}
+          onChange={(e) => {
+            setAddInput(e.target.value)
+            setAddError('')
+          }}
+          className="min-h-[72px] text-sm bg-gray-50 border-gray-200 resize-y"
+          rows={3}
+        />
+        <div className="mt-2 flex items-center gap-2">
+          <Button
+            onClick={handleAdd}
+            className="h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm"
+          >
+            <Plus className="w-4 h-4 mr-1.5" />
+            添加
+          </Button>
+          {addError && (
+            <p className="text-sm text-red-500">{addError}</p>
           )}
+        </div>
+      </div>
 
-          {/* 地址列表 */}
-          {savedAddresses.length > 0 ? (
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 w-[60px]">#</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">地址</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">备注</th>
-                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600 w-[90px]">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {savedAddresses.map((item, idx) => (
-                    <tr key={item.address} className="border-b border-gray-100 hover:bg-gray-50/50">
-                      <td className="px-4 py-3 text-sm text-gray-400">{idx + 1}</td>
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-sm text-gray-700" title={item.address}>
-                          {item.address.slice(0, 10)}...{item.address.slice(-6)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {editingAddr === item.address ? (
-                          <div className="flex items-center gap-2">
-                            <Input
-                              value={editNote}
-                              onChange={(e) => setEditNote(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') saveNote()
-                                if (e.key === 'Escape') cancelEdit()
-                              }}
-                              className="h-8 text-sm"
-                              placeholder="输入备注..."
-                              autoFocus
-                            />
-                            <button
-                              onClick={saveNote}
-                              className="p-1.5 rounded hover:bg-emerald-100 text-emerald-600"
-                              title="保存"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={cancelEdit}
-                              className="p-1.5 rounded hover:bg-gray-200 text-gray-400"
-                              title="取消"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-600">
-                              {item.note || <span className="text-gray-300 italic">无备注</span>}
-                            </span>
-                            <button
-                              onClick={() => startEdit(item.address, item.note)}
-                              className="p-1 rounded hover:bg-gray-200 text-gray-300 hover:text-gray-500"
-                              title="编辑备注"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center">
+      {/* 操作按钮 */}
+      {savedAddresses.length > 0 && (
+        <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+          <Button
+            onClick={handleRefreshAll}
+            disabled={isLoading}
+            className="h-9 px-4 text-sm bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            <RefreshCw className={`w-4 h-4 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
+            查询已保存地址
+          </Button>
+          <Button
+            onClick={handleClearAll}
+            variant="outline"
+            className="h-9 px-4 text-sm text-red-500 border-red-200 hover:bg-red-50"
+          >
+            <Trash2 className="w-4 h-4 mr-1.5" />
+            清空全部
+          </Button>
+        </div>
+      )}
+
+      {/* 地址数量提示 */}
+      {savedAddresses.length > 0 && (
+        <p className="text-sm text-gray-400">
+          共 {savedAddresses.length} 个地址，数据自动保存在浏览器中
+        </p>
+      )}
+
+      {/* 地址列表 */}
+      {savedAddresses.length > 0 ? (
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-3 py-2.5 text-left text-sm font-semibold text-gray-600 w-[40px]">#</th>
+                <th className="px-3 py-2.5 text-left text-sm font-semibold text-gray-600">地址</th>
+                <th className="px-3 py-2.5 text-left text-sm font-semibold text-gray-600">备注</th>
+                <th className="px-3 py-2.5 text-center text-sm font-semibold text-gray-600 w-[50px]">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {savedAddresses.map((item, idx) => (
+                <tr key={item.address} className="border-b border-gray-100 hover:bg-gray-50/50">
+                  <td className="px-3 py-2.5 text-sm text-gray-400">{idx + 1}</td>
+                  <td className="px-3 py-2.5">
+                    <span className="font-mono text-sm text-gray-700" title={item.address}>
+                      {item.address.slice(0, 8)}...{item.address.slice(-4)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {editingAddr === item.address ? (
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          value={editNote}
+                          onChange={(e) => setEditNote(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveNote()
+                            if (e.key === 'Escape') cancelEdit()
+                          }}
+                          className="h-7 text-sm"
+                          placeholder="输入备注..."
+                          autoFocus
+                        />
                         <button
-                          onClick={() => handleDelete(item.address)}
-                          className="p-1.5 rounded hover:bg-red-100 text-gray-300 hover:text-red-500 transition-colors"
-                          title="删除此地址"
+                          onClick={saveNote}
+                          className="p-1 rounded hover:bg-emerald-100 text-emerald-600"
+                          title="保存"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Check className="w-3.5 h-3.5" />
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-sm text-gray-400">
-              暂无保存的地址，添加地址后将自动保存在浏览器中
-            </div>
-          )}
+                        <button
+                          onClick={cancelEdit}
+                          className="p-1 rounded hover:bg-gray-200 text-gray-400"
+                          title="取消"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm text-gray-600">
+                          {item.note || <span className="text-gray-300 italic">无备注</span>}
+                        </span>
+                        <button
+                          onClick={() => startEdit(item.address, item.note)}
+                          className="p-0.5 rounded hover:bg-gray-200 text-gray-300 hover:text-gray-500"
+                          title="编辑备注"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    <button
+                      onClick={() => handleDelete(item.address)}
+                      className="p-1 rounded hover:bg-red-100 text-gray-300 hover:text-red-500 transition-colors"
+                      title="删除此地址"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="text-center py-8 text-sm text-gray-400">
+          暂无保存的地址，添加地址后将自动保存在浏览器中
         </div>
       )}
     </div>

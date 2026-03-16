@@ -130,29 +130,29 @@ export function AddressManager({
   }
 
   return (
-    <div className="mt-6">
+    <div className="mt-8">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+        className="flex items-center gap-2.5 text-base text-gray-600 hover:text-gray-800 transition-colors font-medium"
       >
-        <Bookmark className="h-4 w-4 text-amber-500" />
+        <Bookmark className="h-5 w-5 text-amber-500" />
         <span>地址管理</span>
         {savedAddresses.length > 0 && (
-          <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">
+          <span className="text-sm px-2.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-medium">
             {savedAddresses.length} 个地址
           </span>
         )}
-        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
       </button>
 
       {isExpanded && (
-        <div className="mt-3 p-5 bg-white rounded-xl border border-gray-200 shadow-sm space-y-4">
+        <div className="mt-4 p-6 bg-white rounded-xl border border-gray-200 shadow-sm space-y-5">
           {/* 添加地址区域 */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">
+            <label className="block text-sm font-medium text-gray-600 mb-2">
               添加地址（每行一个或用逗号分隔）
             </label>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <Textarea
                 placeholder="输入钱包地址，每行一个或用逗号分隔"
                 value={addInput}
@@ -160,45 +160,42 @@ export function AddressManager({
                   setAddInput(e.target.value)
                   setAddError('')
                 }}
-                className="min-h-[60px] text-sm bg-gray-50 border-gray-200 resize-y"
+                className="min-h-[72px] text-sm bg-gray-50 border-gray-200 resize-y"
                 rows={2}
               />
               <Button
                 onClick={handleAdd}
-                className="h-auto px-4 bg-blue-600 hover:bg-blue-700 text-white self-end"
-                size="sm"
+                className="h-auto px-5 bg-blue-600 hover:bg-blue-700 text-white self-end text-sm"
               >
-                <Plus className="w-4 h-4 mr-1" />
+                <Plus className="w-4 h-4 mr-1.5" />
                 添加
               </Button>
             </div>
             {addError && (
-              <p className="text-xs text-red-500 mt-1">{addError}</p>
+              <p className="text-sm text-red-500 mt-1.5">{addError}</p>
             )}
           </div>
 
           {/* 操作按钮 */}
           {savedAddresses.length > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <Button
                 onClick={handleRefreshAll}
                 disabled={isLoading}
-                className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                size="sm"
+                className="h-9 px-4 text-sm bg-emerald-600 hover:bg-emerald-700 text-white"
               >
-                <RefreshCw className={`w-3.5 h-3.5 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
                 刷新查询全部
               </Button>
               <Button
                 onClick={handleClearAll}
                 variant="outline"
-                className="h-8 px-3 text-xs text-red-500 border-red-200 hover:bg-red-50"
-                size="sm"
+                className="h-9 px-4 text-sm text-red-500 border-red-200 hover:bg-red-50"
               >
-                <Trash2 className="w-3.5 h-3.5 mr-1" />
+                <Trash2 className="w-4 h-4 mr-1.5" />
                 清空全部
               </Button>
-              <span className="text-xs text-gray-400 ml-auto">
+              <span className="text-sm text-gray-400 ml-auto">
                 共 {savedAddresses.length} 个地址，数据自动保存在浏览器中
               </span>
             </div>
@@ -207,27 +204,27 @@ export function AddressManager({
           {/* 地址列表 */}
           {savedAddresses.length > 0 ? (
             <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
+              <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-3 py-2 text-left font-medium text-gray-600 w-[50px]">#</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-600">地址</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-600">备注</th>
-                    <th className="px-3 py-2 text-center font-medium text-gray-600 w-[80px]">操作</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 w-[60px]">#</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">地址</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">备注</th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600 w-[90px]">操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {savedAddresses.map((item, idx) => (
                     <tr key={item.address} className="border-b border-gray-100 hover:bg-gray-50/50">
-                      <td className="px-3 py-2 text-gray-400">{idx + 1}</td>
-                      <td className="px-3 py-2">
-                        <span className="font-mono text-xs text-gray-700" title={item.address}>
+                      <td className="px-4 py-3 text-sm text-gray-400">{idx + 1}</td>
+                      <td className="px-4 py-3">
+                        <span className="font-mono text-sm text-gray-700" title={item.address}>
                           {item.address.slice(0, 10)}...{item.address.slice(-6)}
                         </span>
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-4 py-3">
                         {editingAddr === item.address ? (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-2">
                             <Input
                               value={editNote}
                               onChange={(e) => setEditNote(e.target.value)}
@@ -235,47 +232,47 @@ export function AddressManager({
                                 if (e.key === 'Enter') saveNote()
                                 if (e.key === 'Escape') cancelEdit()
                               }}
-                              className="h-7 text-xs"
+                              className="h-8 text-sm"
                               placeholder="输入备注..."
                               autoFocus
                             />
                             <button
                               onClick={saveNote}
-                              className="p-1 rounded hover:bg-emerald-100 text-emerald-600"
+                              className="p-1.5 rounded hover:bg-emerald-100 text-emerald-600"
                               title="保存"
                             >
-                              <Check className="w-3.5 h-3.5" />
+                              <Check className="w-4 h-4" />
                             </button>
                             <button
                               onClick={cancelEdit}
-                              className="p-1 rounded hover:bg-gray-200 text-gray-400"
+                              className="p-1.5 rounded hover:bg-gray-200 text-gray-400"
                               title="取消"
                             >
-                              <X className="w-3.5 h-3.5" />
+                              <X className="w-4 h-4" />
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs text-gray-500">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-600">
                               {item.note || <span className="text-gray-300 italic">无备注</span>}
                             </span>
                             <button
                               onClick={() => startEdit(item.address, item.note)}
-                              className="p-0.5 rounded hover:bg-gray-200 text-gray-300 hover:text-gray-500"
+                              className="p-1 rounded hover:bg-gray-200 text-gray-300 hover:text-gray-500"
                               title="编辑备注"
                             >
-                              <Edit3 className="w-3 h-3" />
+                              <Edit3 className="w-4 h-4" />
                             </button>
                           </div>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-center">
+                      <td className="px-4 py-3 text-center">
                         <button
                           onClick={() => handleDelete(item.address)}
-                          className="p-1 rounded hover:bg-red-100 text-gray-300 hover:text-red-500 transition-colors"
+                          className="p-1.5 rounded hover:bg-red-100 text-gray-300 hover:text-red-500 transition-colors"
                           title="删除此地址"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </td>
                     </tr>
@@ -284,7 +281,7 @@ export function AddressManager({
               </table>
             </div>
           ) : (
-            <div className="text-center py-6 text-sm text-gray-400">
+            <div className="text-center py-8 text-sm text-gray-400">
               暂无保存的地址，添加地址后将自动保存在浏览器中
             </div>
           )}

@@ -11,6 +11,7 @@ import {
   ArrowUpDown,
   Globe,
   Download,
+  MessageSquareText,
 } from 'lucide-react'
 import type { WalletData, Position, SortField, SortDirection } from '@/types'
 import { exportToExcel } from '@/services/export'
@@ -316,13 +317,19 @@ export function ResultsTable({ results, addressNotes = {} }: ResultsTableProps) 
             >
               <ExternalLink className="w-3.5 h-3.5 text-gray-400" />
             </a>
+            {/* 备注图标 + tooltip */}
+            {(addressNotes[wallet.address] || addressNotes[wallet.address.toLowerCase()]) && (
+              <span
+                className="relative group p-0.5 rounded hover:bg-amber-100 transition-colors cursor-default"
+                title={addressNotes[wallet.address] || addressNotes[wallet.address.toLowerCase()]}
+              >
+                <MessageSquareText className="w-3.5 h-3.5 text-amber-500" />
+                <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 px-2.5 py-1.5 text-xs text-white bg-gray-800 rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                  {addressNotes[wallet.address] || addressNotes[wallet.address.toLowerCase()]}
+                </span>
+              </span>
+            )}
           </div>
-          {/* 备注显示 */}
-          {(addressNotes[wallet.address] || addressNotes[wallet.address.toLowerCase()]) && (
-            <div className="text-xs text-amber-600 mt-0.5 truncate max-w-[200px]" title={addressNotes[wallet.address] || addressNotes[wallet.address.toLowerCase()]}>
-              {addressNotes[wallet.address] || addressNotes[wallet.address.toLowerCase()]}
-            </div>
-          )}
           {/* 代理出口 IP 显示在地址下方（成功和失败状态都显示） */}
           {wallet.proxyIp && (wallet.status === 'success' || wallet.status === 'error') && (
             <div className="flex items-center gap-1 mt-1">

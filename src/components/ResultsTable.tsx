@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import type { WalletData, Position, SortField, SortDirection } from '@/types'
 import { exportToExcel, exportToCSV, exportToJSON } from '@/services/export'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 // ============================================================
 // 格式化工具
@@ -365,6 +366,7 @@ export function ResultsTable({
   const [searchQuery, setSearchQuery]   = useState('')
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -803,11 +805,7 @@ export function ResultsTable({
           {/* 清除按钮（仅记忆查询标签页显示） */}
           {isMemoTab && onMemoClear && results.length > 0 && !isLoading && (
             <button
-              onClick={() => {
-                if (window.confirm('确定要清除已保存的记忆查询结果吗？')) {
-                  onMemoClear()
-                }
-              }}
+              onClick={() => setShowClearConfirm(true)}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-500 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors shadow-sm"
               title="清除已保存的记忆查询数据"
             >
@@ -930,6 +928,21 @@ export function ResultsTable({
           </table>
         </div>
       </div>
+
+      {/* 清除记忆查询确认弹窗 */}
+      <ConfirmDialog
+        open={showClearConfirm}
+        title="清除记忆查询"
+        message="确定要清除已保存的记忆查询结果吗？该操作将同时清除对应地址的备注信息，且不可恢复。"
+        confirmText="确认清除"
+        cancelText="取消"
+        variant="danger"
+        onConfirm={() => {
+          setShowClearConfirm(false)
+          onMemoClear?.()
+        }}
+        onCancel={() => setShowClearConfirm(false)}
+      />
     </div>
   )
 }

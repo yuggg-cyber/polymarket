@@ -10,6 +10,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/
 
@@ -36,6 +37,7 @@ export function AddressManager({
   const [addError, setAddError] = useState('')
   const [editingAddr, setEditingAddr] = useState<string | null>(null)
   const [editNote, setEditNote] = useState('')
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
 
   // 添加地址
   const handleAdd = () => {
@@ -90,9 +92,7 @@ export function AddressManager({
 
   // 清空所有地址
   const handleClearAll = () => {
-    if (window.confirm('确定要清空所有已保存的地址吗？')) {
-      onSave([])
-    }
+    setShowClearConfirm(true)
   }
 
   // 开始编辑备注
@@ -269,6 +269,20 @@ export function AddressManager({
           暂无保存的地址，添加地址后将自动保存在浏览器中
         </div>
       )}
+      {/* 清空地址确认弹窗 */}
+      <ConfirmDialog
+        open={showClearConfirm}
+        title="清空地址"
+        message="确定要清空所有已保存的地址吗？该操作不可恢复。"
+        confirmText="确认清空"
+        cancelText="取消"
+        variant="danger"
+        onConfirm={() => {
+          setShowClearConfirm(false)
+          onSave([])
+        }}
+        onCancel={() => setShowClearConfirm(false)}
+      />
     </div>
   )
 }

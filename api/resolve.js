@@ -99,7 +99,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid address' })
     }
 
-    const url = `https://safe-client.safe.global/v1/chains/137/owners/${address}/safes`
+    // 使用 Safe Transaction Service API（api.safe.global）
+    // safe-client.safe.global 有 CloudFront WAF 保护，服务端请求会返回 403
+    const url = `https://api.safe.global/tx-service/pol/api/v1/owners/${address}/safes`
 
     let raw
     if (proxyHost) {

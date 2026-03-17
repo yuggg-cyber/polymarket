@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { WalletData, QueryProgress, ProxyConfig } from '@/types'
 import { fetchWalletData } from '@/services/polymarket'
 import { createQueue } from '@/services/queue'
@@ -10,6 +10,8 @@ import { Drawer } from '@/components/ui/drawer'
 
 const STORAGE_KEY_PROXY = 'polymarket_proxy'
 const STORAGE_KEY_ADDRESSES = 'polymarket_saved_addresses'
+const STORAGE_KEY_MEMO_RESULTS = 'polymarket_memo_results'
+const STORAGE_KEY_MEMO_TIME = 'polymarket_memo_time'
 
 /** 每个请求之间的延迟（毫秒），避免触发 API 限流 */
 const REQUEST_DELAY_MS = 300
@@ -37,16 +39,29 @@ function saveToStorage(key: string, value: unknown) {
   } catch { /* ignore */ }
 }
 
+function removeFromStorage(key: string) {
+  try {
+    localStorage.removeItem(key)
+  } catch { /* ignore */ }
+}
+
 /** 延迟工具函数 */
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function App() {
-  const [results, setResults] = useState<WalletData[]>([])
+  // 是否是记忆查询模式触发的当前查询
+  const isMemoQueryRef = useRef(false)
+
+  // 从 localStorage 加载记忆查询的缓存数据（如果有）
+  const cachedMemoResults = loadFromStorage<WalletData[]>(STORAGE_KEY_MEMO_RESULTS, [])
+  const cachedMemoTime = loadFromStorage<string>(STORAGE_KEY_MEMO_TIME, '')
+
+  const [results, setResults] = useState<WalletData[]>(cachedMemoResults)
   const [progress, setProgress] = useState<QueryProgress>({
-    total: 0,
-    completed: 0,
+    total: cachedMemoResults.length > 0 ? cachedMemoResults.length : 0,
+    completed: cachedMemoResults.length > 0 ? cachedMemoResults.length : 0,
     isLoading: false,
   })
   const [proxyConfig, setProxyConfig] = useState<ProxyConfig>(
@@ -55,6 +70,11 @@ function App() {
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(
     () => loadFromStorage(STORAGE_KEY_ADDRESSES, [])
   )
+
+  // 记忆查询保存时间
+  const [memoSavedTime, setMemoSavedTime] = useState<string>(cachedMemoTime)
+  // 当前显示的结果是否来自记忆查询（缓存恢复或记忆查询触发）
+  const [isMemoResult, setIsMemoResult] = useState<boolean>(cachedMemoResults.length > 0)
 
   // 抽屉状态
   const [proxyDrawerOpen, setProxyDrawerOpen] = useState(false)
@@ -87,6 +107,11 @@ function App() {
     setResults([])
     setProgress({ total: addresses.length, completed: 0, isLoading: true })
 
+    // 如果不是记忆查询，标记当前结果不是记忆结果
+    if (!isMemoQueryRef.current) {
+      setIsMemoResult(false)
+    }
+
     // 初始化所有钱包为 loading 状态
     const initialResults: WalletData[] = addresses.map((addr) => ({
       address: addr,
@@ -109,6 +134,8 @@ function App() {
     const queue = createQueue(concurrency)
     let completed = 0
 
+    const finalResults: WalletData[] = [...initialResults]
+
     const tasks = addresses.map((addr, idx) =>
       queue.add(async () => {
         if (idx > 0) {
@@ -123,13 +150,54 @@ function App() {
         setResults((prev) =>
           prev.map((r) => (r.address === addr ? data : r))
         )
+        // 同步更新 finalResults 用于保存
+        const i = finalResults.findIndex((r) => r.address === addr)
+        if (i !== -1) finalResults[i] = data
         return data
       })
     )
 
     await Promise.allSettled(tasks)
     setProgress((prev) => ({ ...prev, isLoading: false }))
+
+    // 如果是记忆查询，查询完成后自动保存结果
+    if (isMemoQueryRef.current) {
+      const timeStr = new Date().toLocaleString('zh-CN')
+      saveToStorage(STORAGE_KEY_MEMO_RESULTS, finalResults)
+      saveToStorage(STORAGE_KEY_MEMO_TIME, timeStr)
+      setMemoSavedTime(timeStr)
+      setIsMemoResult(true)
+      isMemoQueryRef.current = false
+    }
   }, [proxyConfig])
+
+  /** 记忆查询：查询完自动保存 */
+  const handleMemoQuery = useCallback(async (addresses: string[]) => {
+    isMemoQueryRef.current = true
+    await handleQuery(addresses)
+  }, [handleQuery])
+
+  /** 刷新已保存的记忆查询数据 */
+  const handleMemoRefresh = useCallback(async () => {
+    const cached = loadFromStorage<WalletData[]>(STORAGE_KEY_MEMO_RESULTS, [])
+    if (cached.length === 0) return
+    const addresses = cached.map((r) => r.address)
+    isMemoQueryRef.current = true
+    await handleQuery(addresses)
+  }, [handleQuery])
+
+  /** 清除已保存的记忆查询数据 */
+  const handleMemoClear = useCallback(() => {
+    removeFromStorage(STORAGE_KEY_MEMO_RESULTS)
+    removeFromStorage(STORAGE_KEY_MEMO_TIME)
+    setMemoSavedTime('')
+    // 如果当前显示的就是记忆查询结果，清空页面
+    if (isMemoResult) {
+      setResults([])
+      setProgress({ total: 0, completed: 0, isLoading: false })
+      setIsMemoResult(false)
+    }
+  }, [isMemoResult])
 
   /** 刷新单个地址的数据 — 保留旧数据显示，不设为 loading 隐藏 */
   const handleRefreshSingle = useCallback(async (address: string) => {
@@ -147,8 +215,12 @@ function App() {
   const handleRefreshAll = useCallback(async () => {
     if (results.length === 0) return
     const addresses = results.map((r) => r.address)
+    // 如果当前显示的是记忆查询结果，刷新时也走记忆查询流程（自动保存）
+    if (isMemoResult) {
+      isMemoQueryRef.current = true
+    }
     await handleQuery(addresses)
-  }, [results, handleQuery])
+  }, [results, handleQuery, isMemoResult])
 
   /** 重试所有失败和部分成功的地址 */
   const handleRetryFailed = useCallback(async () => {
@@ -197,6 +269,20 @@ function App() {
     await Promise.allSettled(tasks)
     setProgress((prev) => ({ ...prev, isLoading: false }))
   }, [results, proxyConfig])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 当记忆查询结果中的单个地址刷新/重试完成后，也同步更新 localStorage
+  useEffect(() => {
+    if (isMemoResult && !progress.isLoading && results.length > 0) {
+      // 只在非 loading 状态下保存（避免中间状态写入）
+      const hasLoading = results.some((r) => r.status === 'loading' || r.status === 'pending')
+      if (!hasLoading) {
+        const timeStr = new Date().toLocaleString('zh-CN')
+        saveToStorage(STORAGE_KEY_MEMO_RESULTS, results)
+        saveToStorage(STORAGE_KEY_MEMO_TIME, timeStr)
+        setMemoSavedTime(timeStr)
+      }
+    }
+  }, [results, isMemoResult, progress.isLoading])
 
   return (
     <div className="min-h-screen bg-[#f8f9fa]">
@@ -271,12 +357,27 @@ function App() {
       <main className="max-w-[1400px] mx-auto px-6 py-8">
         <SearchSection
           onQuery={handleQuery}
+          onMemoQuery={handleMemoQuery}
+          onMemoRefresh={handleMemoRefresh}
+          onMemoClear={handleMemoClear}
+          memoSavedTime={memoSavedTime}
+          hasMemoData={!!loadFromStorage<WalletData[]>(STORAGE_KEY_MEMO_RESULTS, []).length}
           progress={progress}
           proxyConfig={proxyConfig}
+          hasResults={results.length > 0}
         />
 
         {results.length > 0 && (
           <div className="mt-8">
+            {/* 记忆查询结果提示 */}
+            {isMemoResult && memoSavedTime && !progress.isLoading && (
+              <div className="mb-4 flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                </svg>
+                已保存的记忆查询结果（保存于 {memoSavedTime}）
+              </div>
+            )}
             <ResultsTable
               results={results}
               addressNotes={getNotes()}

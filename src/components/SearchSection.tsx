@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Search, AlertCircle, Loader2 } from 'lucide-react'
+import { Search, AlertCircle, Loader2, RefreshCw, Trash2 } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -12,17 +12,36 @@ const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/
 
 interface SearchSectionProps {
   onQuery: (addresses: string[]) => Promise<void>
+  onMemoQuery: (addresses: string[]) => Promise<void>
+  onMemoRefresh: () => Promise<void>
+  onMemoClear: () => void
+  memoSavedTime: string
+  hasMemoData: boolean
   progress: QueryProgress
   proxyConfig: ProxyConfig
+  hasResults: boolean
 }
 
-export function SearchSection({ onQuery, progress, proxyConfig }: SearchSectionProps) {
-  const [mode, setMode] = useState<'single' | 'batch'>('single')
+export function SearchSection({
+  onQuery,
+  onMemoQuery,
+  onMemoRefresh,
+  onMemoClear,
+  memoSavedTime,
+  hasMemoData,
+  progress,
+  proxyConfig,
+  hasResults,
+}: SearchSectionProps) {
+  const [mode, setMode] = useState<'single' | 'batch' | 'memo'>('single')
   const [singleAddress, setSingleAddress] = useState('')
   const [batchAddresses, setBatchAddresses] = useState('')
+  const [memoAddresses, setMemoAddresses] = useState('')
   const [singleError, setSingleError] = useState('')
   const [batchError, setBatchError] = useState('')
+  const [memoError, setMemoError] = useState('')
   const [parsedCount, setParsedCount] = useState(0)
+  const [memoParsedCount, setMemoParsedCount] = useState(0)
 
   const validateAddress = (addr: string): boolean => {
     return ETH_ADDRESS_REGEX.test(addr.trim())
@@ -55,6 +74,25 @@ export function SearchSection({ onQuery, progress, proxyConfig }: SearchSectionP
     }
   }
 
+  const handleMemoChange = (value: string) => {
+    setMemoAddresses(value)
+    const addresses = parseBatchAddresses(value)
+    setMemoParsedCount(addresses.length)
+
+    if (addresses.length > MAX_BATCH_ADDRESSES) {
+      setMemoError(
+        `最多允许 ${MAX_BATCH_ADDRESSES} 个地址，当前：${addresses.length} 个`
+      )
+    } else {
+      const invalid = addresses.filter((a) => !validateAddress(a))
+      if (invalid.length > 0 && addresses.length > 0) {
+        setMemoError(`检测到 ${invalid.length} 个无效地址`)
+      } else {
+        setMemoError('')
+      }
+    }
+  }
+
   const handleSingleChange = (value: string) => {
     setSingleAddress(value)
     if (value.trim() && !validateAddress(value)) {
@@ -74,7 +112,7 @@ export function SearchSection({ onQuery, progress, proxyConfig }: SearchSectionP
         return
       }
       addresses = [addr]
-    } else {
+    } else if (mode === 'batch') {
       const parsed = parseBatchAddresses(batchAddresses)
       const invalid = parsed.filter((a) => !validateAddress(a))
       if (invalid.length > 0) {
@@ -90,22 +128,45 @@ export function SearchSection({ onQuery, progress, proxyConfig }: SearchSectionP
         return
       }
       addresses = parsed
+    } else {
+      // memo 模式
+      const parsed = parseBatchAddresses(memoAddresses)
+      const invalid = parsed.filter((a) => !validateAddress(a))
+      if (invalid.length > 0) {
+        setMemoError(`发现 ${invalid.length} 个无效地址，请修正后重试`)
+        return
+      }
+      if (parsed.length === 0) {
+        setMemoError('请输入至少一个钱包地址')
+        return
+      }
+      if (parsed.length > MAX_BATCH_ADDRESSES) {
+        setMemoError(`最多允许 ${MAX_BATCH_ADDRESSES} 个地址`)
+        return
+      }
+      addresses = parsed
     }
 
-    await onQuery(addresses)
+    if (mode === 'memo') {
+      await onMemoQuery(addresses)
+    } else {
+      await onQuery(addresses)
+    }
   }
 
   const isBatchOverLimit = parsedCount > MAX_BATCH_ADDRESSES
+  const isMemoOverLimit = memoParsedCount > MAX_BATCH_ADDRESSES
   const isQueryDisabled =
     progress.isLoading ||
     (mode === 'single' && (!singleAddress.trim() || !!singleError)) ||
-    (mode === 'batch' && (isBatchOverLimit || !!batchError || parsedCount === 0))
+    (mode === 'batch' && (isBatchOverLimit || !!batchError || parsedCount === 0)) ||
+    (mode === 'memo' && (isMemoOverLimit || !!memoError || memoParsedCount === 0))
 
   return (
     <div className="mx-auto w-full max-w-4xl">
       <Tabs
         value={mode}
-        onValueChange={(v) => setMode(v as 'single' | 'batch')}
+        onValueChange={(v) => setMode(v as 'single' | 'batch' | 'memo')}
         className="w-full"
       >
         <div className="mb-5 flex justify-center">
@@ -121,6 +182,12 @@ export function SearchSection({ onQuery, progress, proxyConfig }: SearchSectionP
               className="px-8 py-2.5 text-sm font-medium rounded-md data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm"
             >
               批量查询
+            </TabsTrigger>
+            <TabsTrigger
+              value="memo"
+              className="px-8 py-2.5 text-sm font-medium rounded-md data-[state=active]:bg-white data-[state=active]:text-amber-600 data-[state=active]:shadow-sm"
+            >
+              记忆查询
             </TabsTrigger>
           </TabsList>
         </div>
@@ -198,6 +265,95 @@ export function SearchSection({ onQuery, progress, proxyConfig }: SearchSectionP
             </div>
           </div>
         </TabsContent>
+
+        <TabsContent value="memo">
+          <div className="space-y-4">
+            {/* 提示信息 */}
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+              </svg>
+              在此查询的结果会自动保存，下次打开网页仍可查看
+            </div>
+
+            <Textarea
+              placeholder={`输入钱包地址，每行一个或用逗号分隔（最多 ${MAX_BATCH_ADDRESSES} 个）`}
+              value={memoAddresses}
+              onChange={(e) => handleMemoChange(e.target.value)}
+              className="min-h-[160px] bg-white border-gray-200 text-base resize-y rounded-xl shadow-sm focus:border-amber-400 focus:ring-amber-400"
+              rows={6}
+            />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {memoError ? (
+                  <div className="flex items-center gap-2 text-sm text-red-500">
+                    <AlertCircle className="h-4 w-4" />
+                    {memoError}
+                  </div>
+                ) : (
+                  <span className="text-sm text-gray-500">
+                    {memoParsedCount > 0
+                      ? `已检测到 ${memoParsedCount} 个地址`
+                      : '输入地址开始记忆查询'}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {/* 刷新按钮 */}
+                {hasMemoData && (
+                  <Button
+                    onClick={onMemoRefresh}
+                    disabled={progress.isLoading}
+                    variant="outline"
+                    className="h-11 px-5 text-sm font-medium rounded-xl border-amber-300 text-amber-700 hover:bg-amber-50"
+                  >
+                    {progress.isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-1.5" />
+                    )}
+                    刷新
+                  </Button>
+                )}
+                {/* 清除按钮 */}
+                {hasMemoData && (
+                  <Button
+                    onClick={() => {
+                      if (window.confirm('确定要清除已保存的记忆查询结果吗？')) {
+                        onMemoClear()
+                      }
+                    }}
+                    disabled={progress.isLoading}
+                    variant="outline"
+                    className="h-11 px-5 text-sm font-medium rounded-xl border-red-200 text-red-500 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    清除
+                  </Button>
+                )}
+                {/* 查询按钮 */}
+                <Button
+                  onClick={handleQuery}
+                  disabled={isQueryDisabled}
+                  className="h-11 px-8 text-sm font-medium rounded-xl bg-amber-500 hover:bg-amber-600 shadow-sm text-white"
+                >
+                  {progress.isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    `查询${memoParsedCount > 0 ? `（${memoParsedCount}）` : ''}`
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* 已保存数据提示 */}
+            {hasMemoData && memoSavedTime && (
+              <div className="text-sm text-gray-400">
+                已保存的查询结果（{memoSavedTime}）将在打开网页时自动显示
+              </div>
+            )}
+          </div>
+        </TabsContent>
       </Tabs>
 
       {/* 进度条 */}
@@ -220,7 +376,7 @@ export function SearchSection({ onQuery, progress, proxyConfig }: SearchSectionP
       )}
 
       {/* 空状态 */}
-      {!progress.isLoading && progress.total === 0 && (
+      {!progress.isLoading && !hasResults && (
         <div className="mt-16 flex flex-col items-center text-center">
           <Search className="mb-4 h-14 w-14 text-gray-300" />
           <p className="text-lg font-medium text-gray-600">输入钱包地址开始分析</p>

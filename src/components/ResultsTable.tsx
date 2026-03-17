@@ -181,6 +181,13 @@ function EditableNoteCell({
 // 仓位详情行
 // ============================================================
 
+/** 获取持仓状态的排序权重：持有中=0，可合并=1，可赎回=2 */
+function getPositionStatusWeight(pos: Position): number {
+  if (pos.redeemable) return 2
+  if (pos.mergeable) return 1
+  return 0
+}
+
 function PositionDetailRows({ positions }: { positions: Position[] }) {
   if (positions.length === 0) {
     return (
@@ -191,6 +198,14 @@ function PositionDetailRows({ positions }: { positions: Position[] }) {
       </tr>
     )
   }
+
+  // 排序：持有中 → 可合并 → 可赎回，同状态内按买入总额降序
+  const sortedPositions = [...positions].sort((a, b) => {
+    const weightA = getPositionStatusWeight(a)
+    const weightB = getPositionStatusWeight(b)
+    if (weightA !== weightB) return weightA - weightB
+    return b.totalBought - a.totalBought
+  })
 
   return (
     <>
@@ -208,7 +223,7 @@ function PositionDetailRows({ positions }: { positions: Position[] }) {
         <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-center">状态</td>
         <td colSpan={2} className="px-3 py-2.5 text-sm font-semibold text-gray-500">截止日期</td>
       </tr>
-      {positions.map((pos, idx) => {
+      {sortedPositions.map((pos, idx) => {
         const pnlColor = pos.cashPnl >= 0 ? 'text-emerald-600' : 'text-red-500'
         return (
           <tr key={idx} className="bg-gray-50/40 hover:bg-gray-100/60 border-b border-gray-100">

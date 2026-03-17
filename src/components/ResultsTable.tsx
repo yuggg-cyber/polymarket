@@ -427,15 +427,17 @@ export function ResultsTable({
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
-      const aIsData = a.status === 'success' || a.status === 'partial'
-      const bIsData = b.status === 'success' || b.status === 'partial'
-      if (!aIsData && bIsData) return 1
-      if (aIsData && !bIsData) return -1
+      // 按序号排序时，严格按照添加顺序，不区分状态
       if (sortField === 'index') {
         const ai = addressIndexMap.get(a.address) ?? 0
         const bi = addressIndexMap.get(b.address) ?? 0
         return sortDirection === 'asc' ? ai - bi : bi - ai
       }
+      // 按数据列排序时，将非数据行（loading/error/pending）放到末尾
+      const aIsData = a.status === 'success' || a.status === 'partial'
+      const bIsData = b.status === 'success' || b.status === 'partial'
+      if (!aIsData && bIsData) return 1
+      if (aIsData && !bIsData) return -1
       const av = (a[sortField] as number) ?? -1
       const bv = (b[sortField] as number) ?? -1
       return sortDirection === 'asc' ? av - bv : bv - av

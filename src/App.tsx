@@ -5,6 +5,7 @@ import { createQueue } from '@/services/queue'
 import { SearchSection } from '@/components/SearchSection'
 import { ResultsTable } from '@/components/ResultsTable'
 import { ProxySettings } from '@/components/ProxySettings'
+import { AddressExtractor } from '@/components/AddressExtractor'
 import { Drawer } from '@/components/ui/drawer'
 
 const STORAGE_KEY_PROXY = 'polymarket_proxy'
@@ -119,6 +120,7 @@ function App() {
 
   // 抽屉状态
   const [proxyDrawerOpen, setProxyDrawerOpen] = useState(false)
+  const [extractDrawerOpen, setExtractDrawerOpen] = useState(false)
 
   const handleProxyChange = useCallback((config: ProxyConfig) => {
     setProxyConfig(config)
@@ -160,8 +162,6 @@ function App() {
       setResults([])
       setProgress({ total: addresses.length, completed: 0, isLoading: true })
 
-      const resolveResults: { input: string; polymarket: string }[] = []
-
       // 初始化所有地址为 loading 状态
       const resolvingResults: WalletData[] = addresses.map((addr) => ({
         address: addr,
@@ -182,36 +182,57 @@ function App() {
 
       // 并发解析账户地址
       const resolveQueue = createQueue(3)
-      const resolveErrors: WalletData[] = []
+      // 使用 Map 按原始输入顺序记录每个地址的解析结果
+      const resolveResultMap = new Map<string, { safes: string[]; error?: string }>()
 
       const resolveTasks = addresses.map((addr) =>
         resolveQueue.add(async () => {
           try {
             const safes = await resolveAccountToPolymarket(addr)
             if (safes.length === 0) {
-              resolveErrors.push({
-                address: addr,
-                profit: 0,
-                availableBalance: 0,
-                portfolioValue: 0,
-                netWorth: 0,
-                totalVolume: 0,
-                marketsTraded: 0,
-                lastActiveDay: null,
-                activeDays: 0,
-                activeMonths: 0,
-                positions: [],
-                status: 'error' as const,
-                errorMessage: '未找到关联的 Polymarket 账户',
-              })
+              resolveResultMap.set(addr, { safes: [], error: '未找到关联的 Polymarket 账户' })
             } else {
-              for (const safe of safes) {
-                resolveResults.push({ input: addr, polymarket: safe })
-              }
+              resolveResultMap.set(addr, { safes })
             }
           } catch {
-            resolveErrors.push({
-              address: addr,
+            resolveResultMap.set(addr, { safes: [], error: '账户地址解析失败' })
+          }
+        })
+      )
+
+      await Promise.allSettled(resolveTasks)
+
+      // 按原始输入顺序构建结果：先放该地址解析出的 safe，解析失败的也按原位放置
+      const orderedErrors: WalletData[] = []
+      const orderedResolveResults: { input: string; polymarket: string }[] = []
+      const allInitial: WalletData[] = []
+
+      for (const addr of addresses) {
+        const result = resolveResultMap.get(addr)
+        if (!result || result.error) {
+          const errorEntry: WalletData = {
+            address: addr,
+            profit: 0,
+            availableBalance: 0,
+            portfolioValue: 0,
+            netWorth: 0,
+            totalVolume: 0,
+            marketsTraded: 0,
+            lastActiveDay: null,
+            activeDays: 0,
+            activeMonths: 0,
+            positions: [],
+            status: 'error' as const,
+            errorMessage: result?.error || '账户地址解析失败',
+          }
+          orderedErrors.push(errorEntry)
+          allInitial.push(errorEntry)
+        } else {
+          for (const safe of result.safes) {
+            orderedResolveResults.push({ input: addr, polymarket: safe })
+            allInitial.push({
+              address: safe,
+              originalAddress: addr,
               profit: 0,
               availableBalance: 0,
               portfolioValue: 0,
@@ -222,17 +243,14 @@ function App() {
               activeDays: 0,
               activeMonths: 0,
               positions: [],
-              status: 'error' as const,
-              errorMessage: '账户地址解析失败',
+              status: 'loading' as const,
             })
           }
-        })
-      )
+        }
+      }
 
-      await Promise.allSettled(resolveTasks)
-
-      if (resolveResults.length === 0) {
-        setResults(resolveErrors)
+      if (orderedResolveResults.length === 0) {
+        setResults(allInitial)
         setProgress({ total: addresses.length, completed: addresses.length, isLoading: false })
         if (isMemo) {
           isMemoQueryRef.current = false
@@ -240,28 +258,9 @@ function App() {
         return
       }
 
-      queryAddresses = resolveResults
-
-      const allInitial: WalletData[] = [
-        ...resolveErrors,
-        ...resolveResults.map(({ input, polymarket }) => ({
-          address: polymarket,
-          originalAddress: input,
-          profit: 0,
-          availableBalance: 0,
-          portfolioValue: 0,
-          netWorth: 0,
-          totalVolume: 0,
-          marketsTraded: 0,
-          lastActiveDay: null,
-          activeDays: 0,
-          activeMonths: 0,
-          positions: [],
-          status: 'loading' as const,
-        })),
-      ]
+      queryAddresses = orderedResolveResults
       setResults(allInitial)
-      setProgress({ total: resolveErrors.length + resolveResults.length, completed: resolveErrors.length, isLoading: true })
+      setProgress({ total: allInitial.length, completed: orderedErrors.length, isLoading: true })
 
     } else {
       queryAddresses = addresses.map((addr) => ({ input: addr, polymarket: addr }))
@@ -465,6 +464,12 @@ function App() {
           {/* 右侧功能按钮 */}
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setExtractDrawerOpen(true)}
+              className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors"
+            >
+              地址提取
+            </button>
+            <button
               onClick={() => setProxyDrawerOpen(true)}
               className="relative px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors"
             >
@@ -476,6 +481,15 @@ function App() {
           </div>
         </div>
       </header>
+
+      {/* 地址提取抽屉 */}
+      <Drawer
+        open={extractDrawerOpen}
+        onClose={() => setExtractDrawerOpen(false)}
+        title="地址提取"
+      >
+        <AddressExtractor />
+      </Drawer>
 
       {/* 代理设置抽屉 */}
       <Drawer

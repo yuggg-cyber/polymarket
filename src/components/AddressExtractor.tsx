@@ -4,6 +4,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { resolveAccountToPolymarket } from '@/services/polymarket'
 import { createQueue } from '@/services/queue'
+import type { ProxyConfig } from '@/types'
 
 const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/
 const MAX_ADDRESSES = 200
@@ -15,7 +16,11 @@ interface ResolvedItem {
   errorMessage?: string
 }
 
-export function AddressExtractor() {
+interface AddressExtractorProps {
+  proxyConfig: ProxyConfig
+}
+
+export function AddressExtractor({ proxyConfig }: AddressExtractorProps) {
   const [inputText, setInputText] = useState('')
   const [inputError, setInputError] = useState('')
   const [results, setResults] = useState<ResolvedItem[]>([])
@@ -83,7 +88,7 @@ export function AddressExtractor() {
     const tasks = addresses.map((addr, idx) =>
       queue.add(async () => {
         try {
-          const safes = await resolveAccountToPolymarket(addr)
+          const safes = await resolveAccountToPolymarket(addr, proxyConfig.enabled ? proxyConfig : undefined)
           setResults((prev) =>
             prev.map((r, i) =>
               i === idx

@@ -330,10 +330,37 @@ function App() {
     await runQuery(addresses, activeTab, false, addressType)
   }, [runQuery, activeTab, addressType])
 
-  /** 记忆查询 */
+  /** 记忆查询：新地址追加到已有结果中，已存在的地址则刷新数据 */
   const handleMemoQuery = useCallback(async (addresses: string[]) => {
+    // 保留当前记忆查询中不在本次查询范围内的旧结果
+    const newAddrSet = new Set(addresses.map((a) => a.toLowerCase()))
+    const existingResults = memoResults.filter(
+      (r) => !newAddrSet.has(r.address.toLowerCase())
+    )
+
+    // 先把旧结果保留，然后追加新查询的 loading 状态
+    if (existingResults.length > 0) {
+      setMemoResults(existingResults)
+    }
+
     await runQuery(addresses, 'memo', true, addressType)
-  }, [runQuery, addressType])
+
+    // 查询完成后，合并旧结果和新结果
+    setMemoResults((prev) => {
+      // prev 此时只包含本次查询的结果，需要把旧结果合并进来
+      const prevAddrSet = new Set(prev.map((r) => r.address.toLowerCase()))
+      const toKeep = existingResults.filter(
+        (r) => !prevAddrSet.has(r.address.toLowerCase())
+      )
+      const merged = [...toKeep, ...prev]
+      saveToStorage(STORAGE_KEY_MEMO_RESULTS, merged)
+      const timeStr = new Date().toLocaleString('zh-CN')
+      saveToStorage(STORAGE_KEY_MEMO_TIME, timeStr)
+      setMemoSavedTime(timeStr)
+      setMemoProgress({ total: merged.length, completed: merged.length, isLoading: false })
+      return merged
+    })
+  }, [runQuery, addressType, memoResults])
 
   /** 清除已保存的记忆查询数据 */
   const handleMemoClear = useCallback(() => {

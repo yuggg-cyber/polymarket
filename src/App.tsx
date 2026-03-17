@@ -188,7 +188,7 @@ function App() {
       const resolveTasks = addresses.map((addr) =>
         resolveQueue.add(async () => {
           try {
-            const safes = await resolveAccountToPolymarket(addr, proxyConfig.enabled ? proxyConfig : undefined)
+            const safes = await resolveAccountToPolymarket(addr)
             if (safes.length === 0) {
               resolveResultMap.set(addr, { safes: [], error: '未找到关联的 Polymarket 账户' })
             } else {
@@ -488,7 +488,7 @@ function App() {
         onClose={() => setExtractDrawerOpen(false)}
         title="地址提取"
       >
-        <AddressExtractor proxyConfig={proxyConfig} />
+        <AddressExtractor />
       </Drawer>
 
       {/* 代理设置抽屉 */}

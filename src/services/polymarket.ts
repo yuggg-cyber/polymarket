@@ -207,46 +207,11 @@ interface SafeApiResponse {
 /**
  * 通过 Safe Global API 查询某个 owner 地址关联的 Safe 多签钱包地址（Polygon 链）
  * Polymarket 用户的交易钱包就是 Safe 多签钱包
- * 支持代理模式：开启代理时通过 Serverless Function 转发请求
+ * 始终直连 Safe API（不走代理，Safe API 仅查询地址关联关系，无风险）
  */
 export async function resolveAccountToPolymarket(
-  ownerAddress: string,
-  proxyConfig?: ProxyConfig
+  ownerAddress: string
 ): Promise<string[]> {
-  // 代理模式：通过 /api/resolve Serverless Function 转发
-  if (proxyConfig?.enabled && proxyConfig.host) {
-    try {
-      const base = window.location.origin
-      const sessionId = randomSessionId()
-      const proxyUser = `${proxyConfig.userPrefix}_session-${sessionId}`
-
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 30000)
-
-      const res = await fetch(`${base}/api/resolve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          address: ownerAddress,
-          proxyHost: proxyConfig.host,
-          proxyPort: proxyConfig.port,
-          proxyUser,
-          proxyPass: proxyConfig.password,
-        }),
-      })
-
-      clearTimeout(timer)
-
-      if (!res.ok) throw new Error(`API 返回 ${res.status}`)
-      const data = await res.json()
-      return Array.isArray(data?.safes) ? data.safes : []
-    } catch {
-      return []
-    }
-  }
-
-  // 直连模式
   const url = `https://safe-client.safe.global/v1/chains/137/owners/${ownerAddress}/safes`
   try {
     const res = await fetchJSON<SafeApiResponse>(url)

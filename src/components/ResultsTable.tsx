@@ -17,6 +17,8 @@ import {
   Search,
   RotateCcw,
   ChevronDownIcon,
+  Trash2,
+  X,
 } from 'lucide-react'
 import type { WalletData, Position, SortField, SortDirection } from '@/types'
 import { exportToExcel, exportToCSV, exportToJSON } from '@/services/export'
@@ -236,6 +238,10 @@ interface ResultsTableProps {
   onRefreshSingle?: (address: string) => Promise<void>
   onRefreshAll?: () => Promise<void>
   onRetryFailed?: () => Promise<void>
+  onMemoClear?: () => void
+  onDeleteAddress?: (address: string) => void
+  isMemoTab?: boolean
+  memoSavedTime?: string
 }
 
 export function ResultsTable({
@@ -245,6 +251,10 @@ export function ResultsTable({
   onRefreshSingle,
   onRefreshAll,
   onRetryFailed,
+  onMemoClear,
+  onDeleteAddress,
+  isMemoTab = false,
+  memoSavedTime = '',
 }: ResultsTableProps) {
   const [sortField, setSortField]       = useState<SortField>('index')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
@@ -491,6 +501,16 @@ export function ResultsTable({
                 <RefreshCw className={`w-3.5 h-3.5 text-blue-400 ${isRefreshing ? 'animate-spin' : ''}`} />
               </button>
             )}
+            {/* 删除此地址按钮 */}
+            {onDeleteAddress && !isLoading && (
+              <button
+                onClick={() => onDeleteAddress(wallet.address)}
+                className="p-0.5 rounded hover:bg-red-100 transition-colors"
+                title="删除此地址"
+              >
+                <X className="w-3.5 h-3.5 text-red-400 hover:text-red-600" />
+              </button>
+            )}
             {/* 备注图标 */}
             {(addressNotes[wallet.address] || addressNotes[wallet.address.toLowerCase()]) && (
               <span
@@ -610,6 +630,12 @@ export function ResultsTable({
               <span className="text-red-500 ml-1">，失败 {errorCount} 个</span>
             )}
           </span>
+          {/* 记忆查询保存时间提示 */}
+          {isMemoTab && memoSavedTime && !isLoading && (
+            <span className="text-sm text-gray-400">
+              （保存于 {memoSavedTime}）
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -655,6 +681,22 @@ export function ResultsTable({
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
               刷新全部
+            </button>
+          )}
+
+          {/* 清除按钮（仅记忆查询标签页显示） */}
+          {isMemoTab && onMemoClear && results.length > 0 && !isLoading && (
+            <button
+              onClick={() => {
+                if (window.confirm('确定要清除已保存的记忆查询结果吗？')) {
+                  onMemoClear()
+                }
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-500 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors shadow-sm"
+              title="清除已保存的记忆查询数据"
+            >
+              <Trash2 className="w-4 h-4" />
+              清除
             </button>
           )}
 

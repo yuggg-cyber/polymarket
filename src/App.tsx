@@ -220,14 +220,6 @@ function App() {
     await runQuery(addresses, 'memo', true)
   }, [runQuery])
 
-  /** 刷新已保存的记忆查询数据 */
-  const handleMemoRefresh = useCallback(async () => {
-    const cached = loadFromStorage<WalletData[]>(STORAGE_KEY_MEMO_RESULTS, [])
-    if (cached.length === 0) return
-    const addresses = cached.map((r) => r.address)
-    await runQuery(addresses, 'memo', true)
-  }, [runQuery])
-
   /** 清除已保存的记忆查询数据 */
   const handleMemoClear = useCallback(() => {
     removeFromStorage(STORAGE_KEY_MEMO_RESULTS)
@@ -236,6 +228,29 @@ function App() {
     setMemoResults([])
     setMemoProgress({ total: 0, completed: 0, isLoading: false })
   }, [])
+
+  /** 删除某个地址（从当前标签页的结果中移除） */
+  const handleDeleteAddress = useCallback((address: string) => {
+    const setResults = getSetResultsForTab(activeTab)
+    setResults((prev) => {
+      const updated = prev.filter((r) => r.address !== address)
+      // 如果是记忆查询，同步更新 localStorage
+      if (activeTab === 'memo') {
+        if (updated.length > 0) {
+          saveToStorage(STORAGE_KEY_MEMO_RESULTS, updated)
+          const timeStr = new Date().toLocaleString('zh-CN')
+          saveToStorage(STORAGE_KEY_MEMO_TIME, timeStr)
+          setMemoSavedTime(timeStr)
+        } else {
+          // 删完了就清除
+          removeFromStorage(STORAGE_KEY_MEMO_RESULTS)
+          removeFromStorage(STORAGE_KEY_MEMO_TIME)
+          setMemoSavedTime('')
+        }
+      }
+      return updated
+    })
+  }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** 刷新单个地址的数据 */
   const handleRefreshSingle = useCallback(async (address: string) => {
@@ -395,10 +410,6 @@ function App() {
           onTabChange={setActiveTab}
           onQuery={handleQuery}
           onMemoQuery={handleMemoQuery}
-          onMemoRefresh={handleMemoRefresh}
-          onMemoClear={handleMemoClear}
-          memoSavedTime={memoSavedTime}
-          hasMemoData={memoResults.length > 0 || !!loadFromStorage<WalletData[]>(STORAGE_KEY_MEMO_RESULTS, []).length}
           progress={currentProgress}
           proxyConfig={proxyConfig}
           hasResults={currentResults.length > 0}
@@ -406,15 +417,6 @@ function App() {
 
         {currentResults.length > 0 && (
           <div className="mt-8">
-            {/* 记忆查询结果提示 */}
-            {activeTab === 'memo' && memoSavedTime && !currentProgress.isLoading && (
-              <div className="mb-4 flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
-                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                </svg>
-                已保存的记忆查询结果（保存于 {memoSavedTime}）
-              </div>
-            )}
             <ResultsTable
               results={currentResults}
               addressNotes={getNotes()}
@@ -422,6 +424,10 @@ function App() {
               onRefreshSingle={handleRefreshSingle}
               onRefreshAll={handleRefreshAll}
               onRetryFailed={handleRetryFailed}
+              onMemoClear={handleMemoClear}
+              onDeleteAddress={handleDeleteAddress}
+              isMemoTab={activeTab === 'memo'}
+              memoSavedTime={memoSavedTime}
             />
           </div>
         )}

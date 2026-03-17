@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Search, AlertCircle, Loader2, RefreshCw, Trash2 } from 'lucide-react'
+import { Search, AlertCircle, Loader2 } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -17,10 +17,6 @@ interface SearchSectionProps {
   onTabChange: (tab: TabMode) => void
   onQuery: (addresses: string[]) => Promise<void>
   onMemoQuery: (addresses: string[]) => Promise<void>
-  onMemoRefresh: () => Promise<void>
-  onMemoClear: () => void
-  memoSavedTime: string
-  hasMemoData: boolean
   progress: QueryProgress
   proxyConfig: ProxyConfig
   hasResults: boolean
@@ -31,10 +27,6 @@ export function SearchSection({
   onTabChange,
   onQuery,
   onMemoQuery,
-  onMemoRefresh,
-  onMemoClear,
-  memoSavedTime,
-  hasMemoData,
   progress,
   proxyConfig,
   hasResults,
@@ -295,60 +287,19 @@ export function SearchSection({
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                {/* 刷新按钮 */}
-                {hasMemoData && (
-                  <Button
-                    onClick={onMemoRefresh}
-                    disabled={progress.isLoading}
-                    variant="outline"
-                    className="h-11 px-5 text-sm font-medium rounded-xl border-amber-300 text-amber-700 hover:bg-amber-50"
-                  >
-                    {progress.isLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4 mr-1.5" />
-                    )}
-                    刷新
-                  </Button>
+              {/* 只保留查询按钮，刷新和清除移到 ResultsTable */}
+              <Button
+                onClick={handleQuery}
+                disabled={isQueryDisabled}
+                className="h-11 px-8 text-sm font-medium rounded-xl bg-amber-500 hover:bg-amber-600 shadow-sm text-white"
+              >
+                {progress.isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  `查询${memoParsedCount > 0 ? `（${memoParsedCount}）` : ''}`
                 )}
-                {/* 清除按钮 */}
-                {hasMemoData && (
-                  <Button
-                    onClick={() => {
-                      if (window.confirm('确定要清除已保存的记忆查询结果吗？')) {
-                        onMemoClear()
-                      }
-                    }}
-                    disabled={progress.isLoading}
-                    variant="outline"
-                    className="h-11 px-5 text-sm font-medium rounded-xl border-red-200 text-red-500 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4 mr-1.5" />
-                    清除
-                  </Button>
-                )}
-                {/* 查询按钮 */}
-                <Button
-                  onClick={handleQuery}
-                  disabled={isQueryDisabled}
-                  className="h-11 px-8 text-sm font-medium rounded-xl bg-amber-500 hover:bg-amber-600 shadow-sm text-white"
-                >
-                  {progress.isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    `查询${memoParsedCount > 0 ? `（${memoParsedCount}）` : ''}`
-                  )}
-                </Button>
-              </div>
+              </Button>
             </div>
-
-            {/* 已保存数据提示 */}
-            {hasMemoData && memoSavedTime && (
-              <div className="text-sm text-gray-400">
-                已保存的查询结果（{memoSavedTime}）将在打开网页时自动显示
-              </div>
-            )}
           </div>
         </TabsContent>
       </Tabs>

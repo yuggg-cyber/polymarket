@@ -425,10 +425,7 @@ async function fetchWalletDataViaProxy(
   address: string,
   proxy: ProxyConfig
 ): Promise<WalletData> {
-  let base = proxy.apiBase.replace(/\/+$/, '')
-  if (!/^https?:\/\//i.test(base)) {
-    base = `https://${base}`
-  }
+  const base = window.location.origin
   const apiUrl = `${base}/api/query`
 
   let lastError: Error | null = null
@@ -526,7 +523,7 @@ export async function fetchWalletData(
   address: string,
   proxyConfig?: ProxyConfig
 ): Promise<WalletData> {
-  if (proxyConfig?.enabled && proxyConfig.host && proxyConfig.apiBase) {
+  if (proxyConfig?.enabled && proxyConfig.host) {
     return await fetchWalletDataViaProxy(address, proxyConfig)
   }
 

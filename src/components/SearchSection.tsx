@@ -257,14 +257,6 @@ export function SearchSection({
 
         <TabsContent value="memo">
           <div className="space-y-4">
-            {/* 提示信息 */}
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-              </svg>
-              在此查询的结果会自动保存，下次打开网页仍可查看
-            </div>
-
             <Textarea
               placeholder={`输入钱包地址，每行一个或用逗号分隔（最多 ${MAX_BATCH_ADDRESSES} 个）`}
               value={memoAddresses}

@@ -22,7 +22,6 @@ const DEFAULT_PROXY: ProxyConfig = {
   port: '',
   userPrefix: '',
   password: '',
-  apiBase: '',
 }
 
 type TabMode = 'single' | 'batch' | 'memo'

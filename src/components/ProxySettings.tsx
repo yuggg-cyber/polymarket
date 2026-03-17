@@ -8,7 +8,7 @@ interface ProxySettingsProps {
 }
 
 export function ProxySettings({ proxyConfig, onProxyChange }: ProxySettingsProps) {
-  const proxyReady = proxyConfig.enabled && proxyConfig.host && proxyConfig.apiBase
+  const proxyReady = proxyConfig.enabled && proxyConfig.host
 
   // 解析代理字符串格式：host:port:user:pass
   const handleProxyQuickFill = (text: string) => {
@@ -117,18 +117,6 @@ export function ProxySettings({ proxyConfig, onProxyChange }: ProxySettingsProps
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">
-              API 服务地址（Vercel 部署后的域名）
-            </label>
-            <Input
-              placeholder="your-project.vercel.app"
-              value={proxyConfig.apiBase}
-              onChange={(e) => onProxyChange({ ...proxyConfig, apiBase: e.target.value })}
-              className="h-10 text-sm bg-gray-50 border-gray-200"
-            />
-          </div>
-
           {/* 状态提示 */}
           {proxyReady ? (
             <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg">
@@ -138,7 +126,7 @@ export function ProxySettings({ proxyConfig, onProxyChange }: ProxySettingsProps
           ) : (
             <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">
               <AlertCircle className="h-4 w-4" />
-              请填写完整的代理信息和 API 服务地址
+              请填写完整的代理信息
             </div>
           )}
         </>

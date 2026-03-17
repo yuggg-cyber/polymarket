@@ -84,6 +84,4 @@ export interface ProxyConfig {
   userPrefix: string
   /** 密码 */
   password: string
-  /** API 服务地址（Vercel 部署后的域名） */
-  apiBase: string
 }

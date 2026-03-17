@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Copy,
   ExternalLink,
@@ -12,13 +12,13 @@ import {
   ArrowUpDown,
   Globe,
   Download,
-  MessageSquareText,
   RefreshCw,
   Search,
   RotateCcw,
   ChevronDownIcon,
   Trash2,
   X,
+  Pencil,
 } from 'lucide-react'
 import type { WalletData, Position, SortField, SortDirection } from '@/types'
 import { exportToExcel, exportToCSV, exportToJSON } from '@/services/export'
@@ -65,7 +65,6 @@ function shortenAddress(address: string): string {
 // failedFields 到数据列字段的映射
 // ============================================================
 
-/** 根据 failedFields 判断某个数据字段是否失败 */
 function isFieldFailed(failedFields: string[] | undefined, ...fieldNames: string[]): boolean {
   if (!failedFields || failedFields.length === 0) return false
   return fieldNames.some(name => failedFields.includes(name))
@@ -97,7 +96,86 @@ const SORT_COLS: { field: SortField; label: string; tip: string }[] = [
   { field: 'activeMonths',     label: '活跃月',   tip: '历史累计活跃月数' },
 ]
 
-const TOTAL_COLS = 4 + SORT_COLS.length // checkbox + 展开 + 序号 + 地址 + 9 数据列 = 13
+// checkbox + 展开 + 序号 + 地址 + 9 数据列 + 备注列 = 14
+const TOTAL_COLS = 4 + SORT_COLS.length + 1
+
+// ============================================================
+// 可编辑备注单元格
+// ============================================================
+
+function EditableNoteCell({
+  address,
+  note,
+  onNoteChange,
+}: {
+  address: string
+  note: string
+  onNoteChange?: (address: string, note: string) => void
+}) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(note)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setEditValue(note)
+  }, [note])
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [isEditing])
+
+  const handleSave = () => {
+    setIsEditing(false)
+    if (onNoteChange && editValue !== note) {
+      onNoteChange(address, editValue)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave()
+    } else if (e.key === 'Escape') {
+      setEditValue(note)
+      setIsEditing(false)
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <td className="px-3 py-2 min-w-[120px]">
+        <input
+          ref={inputRef}
+          type="text"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleKeyDown}
+          className="w-full px-2 py-1 text-sm border border-blue-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+          placeholder="输入备注..."
+        />
+      </td>
+    )
+  }
+
+  return (
+    <td className="px-3 py-3 min-w-[120px]">
+      <div
+        className="flex items-center gap-1 cursor-pointer group"
+        onClick={() => setIsEditing(true)}
+        title={note || '点击添加备注'}
+      >
+        {note ? (
+          <span className="text-sm text-amber-600 truncate max-w-[150px]">{note}</span>
+        ) : (
+          <span className="text-sm text-gray-300 group-hover:text-gray-400">-</span>
+        )}
+        <Pencil className="w-3 h-3 text-gray-300 group-hover:text-blue-400 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
+    </td>
+  )
+}
 
 // ============================================================
 // 仓位详情行
@@ -128,7 +206,7 @@ function PositionDetailRows({ positions }: { positions: Position[] }) {
         <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">浮动盈亏</td>
         <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">买入总额</td>
         <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-center">状态</td>
-        <td className="px-3 py-2.5 text-sm font-semibold text-gray-500">截止日期</td>
+        <td colSpan={2} className="px-3 py-2.5 text-sm font-semibold text-gray-500">截止日期</td>
       </tr>
       {positions.map((pos, idx) => {
         const pnlColor = pos.cashPnl >= 0 ? 'text-emerald-600' : 'text-red-500'
@@ -182,7 +260,7 @@ function PositionDetailRows({ positions }: { positions: Position[] }) {
                 <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">持有中</span>
               )}
             </td>
-            <td className="px-3 py-2.5 text-sm text-gray-500">
+            <td colSpan={2} className="px-3 py-2.5 text-sm text-gray-500">
               {pos.endDate ? new Date(pos.endDate).toLocaleDateString('zh-CN') : '-'}
             </td>
           </tr>
@@ -234,6 +312,7 @@ function SummaryCards({ results }: { results: WalletData[] }) {
 interface ResultsTableProps {
   results: WalletData[]
   addressNotes?: Record<string, string>
+  onNoteChange?: (address: string, note: string) => void
   isLoading?: boolean
   onRefreshSingle?: (address: string) => Promise<void>
   onRefreshAll?: () => Promise<void>
@@ -247,6 +326,7 @@ interface ResultsTableProps {
 export function ResultsTable({
   results,
   addressNotes = {},
+  onNoteChange,
   isLoading = false,
   onRefreshSingle,
   onRefreshAll,
@@ -317,7 +397,7 @@ export function ResultsTable({
     }
   }
 
-  // 构建原始地址到序号的映射（按输入顺序）
+  // 构建原始地址到序号的映射
   const addressIndexMap = useMemo(() => {
     const map = new Map<string, number>()
     results.forEach((r, i) => {
@@ -326,23 +406,27 @@ export function ResultsTable({
     return map
   }, [results])
 
+  // 获取地址的备注（不区分大小写）
+  const getNote = (address: string): string => {
+    return addressNotes[address.toLowerCase()] || ''
+  }
+
   // 搜索过滤
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return results
     const q = searchQuery.trim().toLowerCase()
     return results.filter((r) => {
       if (r.address.toLowerCase().includes(q)) return true
-      const note = addressNotes[r.address] || addressNotes[r.address.toLowerCase()] || ''
+      const note = getNote(r.address)
       if (note.toLowerCase().includes(q)) return true
       const idx = addressIndexMap.get(r.address) ?? 0
       if (String(idx) === q) return true
       return false
     })
-  }, [results, searchQuery, addressNotes, addressIndexMap])
+  }, [results, searchQuery, addressNotes, addressIndexMap]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
-      // error 排最后，success 和 partial 正常排序
       const aIsData = a.status === 'success' || a.status === 'partial'
       const bIsData = b.status === 'success' || b.status === 'partial'
       if (!aIsData && bIsData) return 1
@@ -379,7 +463,7 @@ export function ResultsTable({
     setExportMenuOpen(false)
   }
 
-  // 渲染单个数据单元格，失败的字段显示 "-"
+  // 渲染单个数据单元格
   const renderCell = (
     wallet: WalletData,
     value: number | null,
@@ -412,6 +496,7 @@ export function ResultsTable({
     const isSelected = selectedRows.has(wallet.address)
     const isPartialStatus = wallet.status === 'partial'
     const isDataReady = wallet.status === 'success' || wallet.status === 'partial'
+    const walletNote = getNote(wallet.address)
 
     rows.push(
       <tr
@@ -448,7 +533,7 @@ export function ResultsTable({
           {rowIndex}
         </td>
 
-        {/* 地址 + 操作按钮 + 代理 IP */}
+        {/* 地址 + 操作按钮 */}
         <td className="px-3 py-3 min-w-[200px]">
           <div className="flex items-center gap-1.5">
             {wallet.status === 'loading' && (
@@ -511,18 +596,6 @@ export function ResultsTable({
                 <X className="w-3.5 h-3.5 text-red-400 hover:text-red-600" />
               </button>
             )}
-            {/* 备注图标 */}
-            {(addressNotes[wallet.address] || addressNotes[wallet.address.toLowerCase()]) && (
-              <span
-                className="relative group p-0.5 rounded hover:bg-amber-100 transition-colors cursor-default"
-                title={addressNotes[wallet.address] || addressNotes[wallet.address.toLowerCase()]}
-              >
-                <MessageSquareText className="w-3.5 h-3.5 text-amber-500" />
-                <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 px-2.5 py-1.5 text-xs text-white bg-gray-800 rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                  {addressNotes[wallet.address] || addressNotes[wallet.address.toLowerCase()]}
-                </span>
-              </span>
-            )}
           </div>
           {/* 原始账户地址（账户地址模式下显示） */}
           {wallet.originalAddress && wallet.originalAddress !== wallet.address && (
@@ -565,20 +638,26 @@ export function ResultsTable({
 
         {/* 数据列 */}
         {wallet.status === 'loading' ? (
-          <td colSpan={9} className="px-3 py-3 text-center text-gray-400">
-            <span className="inline-flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" /> 加载中...
-            </span>
-          </td>
+          <>
+            <td colSpan={9} className="px-3 py-3 text-center text-gray-400">
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> 加载中...
+              </span>
+            </td>
+            <td className="px-3 py-3"></td>
+          </>
         ) : wallet.status === 'error' ? (
-          <td colSpan={9} className="px-3 py-3 text-center text-red-500">
-            <span className="inline-flex items-center gap-2">
-              <AlertCircle className="w-4 h-4" /> {wallet.errorMessage || '查询失败'}
-            </span>
-          </td>
+          <>
+            <td colSpan={9} className="px-3 py-3 text-center text-red-500">
+              <span className="inline-flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" /> {wallet.errorMessage || '查询失败'}
+              </span>
+            </td>
+            <td className="px-3 py-3"></td>
+          </>
         ) : (
           <>
-            {/* 净资产：依赖可用余额和持仓估值 */}
+            {/* 净资产 */}
             {renderCell(wallet, wallet.netWorth, ['可用余额', '持仓估值'], formatUSD, 'text-gray-800 font-semibold')}
             {/* 盈亏 */}
             {isFieldFailed(wallet.failedFields, '盈亏') ? (
@@ -606,6 +685,12 @@ export function ResultsTable({
             {renderCell(wallet, wallet.activeDays, ['活跃度'], (v) => String(v), 'text-gray-700')}
             {/* 活跃月 */}
             {renderCell(wallet, wallet.activeMonths, ['活跃度'], (v) => String(v), 'text-gray-700')}
+            {/* 备注 */}
+            <EditableNoteCell
+              address={wallet.address}
+              note={walletNote}
+              onNoteChange={onNoteChange}
+            />
           </>
         )}
       </tr>
@@ -667,7 +752,7 @@ export function ResultsTable({
             )}
           </div>
 
-          {/* 重试失败/部分成功按钮 */}
+          {/* 重试失败按钮 */}
           {onRetryFailed && retryableCount > 0 && !isLoading && (
             <button
               onClick={onRetryFailed}
@@ -810,6 +895,10 @@ export function ResultsTable({
                     </button>
                   </th>
                 ))}
+                {/* 备注列表头 */}
+                <th className="px-3 py-3 text-left text-sm font-semibold text-gray-600 whitespace-nowrap min-w-[120px]">
+                  备注
+                </th>
               </tr>
             </thead>
             <tbody>

@@ -4,14 +4,13 @@ import { fetchWalletData, resolveAccountToPolymarket } from '@/services/polymark
 import { createQueue } from '@/services/queue'
 import { SearchSection } from '@/components/SearchSection'
 import { ResultsTable } from '@/components/ResultsTable'
-import { AddressManager, type SavedAddress } from '@/components/AddressManager'
 import { ProxySettings } from '@/components/ProxySettings'
 import { Drawer } from '@/components/ui/drawer'
 
 const STORAGE_KEY_PROXY = 'polymarket_proxy'
-const STORAGE_KEY_ADDRESSES = 'polymarket_saved_addresses'
 const STORAGE_KEY_MEMO_RESULTS = 'polymarket_memo_results'
 const STORAGE_KEY_MEMO_TIME = 'polymarket_memo_time'
+const STORAGE_KEY_NOTES = 'polymarket_address_notes'
 
 /** 每个请求之间的延迟（毫秒） */
 const REQUEST_DELAY_MS = 200
@@ -77,6 +76,11 @@ function App() {
     isLoading: false,
   })
 
+  // ====== 地址备注（全局，所有标签页共享） ======
+  const [addressNotes, setAddressNotes] = useState<Record<string, string>>(
+    () => loadFromStorage(STORAGE_KEY_NOTES, {})
+  )
+
   // ====== 根据当前标签页获取对应的 results / setResults / progress / setProgress ======
   const getResultsForTab = (tab: TabMode) => {
     if (tab === 'single') return singleResults
@@ -112,34 +116,28 @@ function App() {
   const [proxyConfig, setProxyConfig] = useState<ProxyConfig>(
     () => loadFromStorage(STORAGE_KEY_PROXY, DEFAULT_PROXY)
   )
-  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(
-    () => loadFromStorage(STORAGE_KEY_ADDRESSES, [])
-  )
 
   // 抽屉状态
   const [proxyDrawerOpen, setProxyDrawerOpen] = useState(false)
-  const [addressDrawerOpen, setAddressDrawerOpen] = useState(false)
-
-  // 根据地址获取备注映射表（不区分大小写）
-  const getNotes = useCallback(() => {
-    const map: Record<string, string> = {}
-    for (const a of savedAddresses) {
-      if (a.note) {
-        map[a.address] = a.note
-        map[a.address.toLowerCase()] = a.note
-      }
-    }
-    return map
-  }, [savedAddresses])
 
   const handleProxyChange = useCallback((config: ProxyConfig) => {
     setProxyConfig(config)
     saveToStorage(STORAGE_KEY_PROXY, config)
   }, [])
 
-  const handleSaveAddresses = useCallback((addresses: SavedAddress[]) => {
-    setSavedAddresses(addresses)
-    saveToStorage(STORAGE_KEY_ADDRESSES, addresses)
+  /** 更新某个地址的备注 */
+  const handleNoteChange = useCallback((address: string, note: string) => {
+    setAddressNotes((prev) => {
+      const updated = { ...prev }
+      const key = address.toLowerCase()
+      if (note.trim()) {
+        updated[key] = note.trim()
+      } else {
+        delete updated[key]
+      }
+      saveToStorage(STORAGE_KEY_NOTES, updated)
+      return updated
+    })
   }, [])
 
   /** 通用批量查询函数，操作指定标签页的 state */
@@ -234,7 +232,6 @@ function App() {
       await Promise.allSettled(resolveTasks)
 
       if (resolveResults.length === 0) {
-        // 所有地址都解析失败
         setResults(resolveErrors)
         setProgress({ total: addresses.length, completed: addresses.length, isLoading: false })
         if (isMemo) {
@@ -245,7 +242,6 @@ function App() {
 
       queryAddresses = resolveResults
 
-      // 更新结果：先放入解析失败的，再为成功解析的创建 loading 占位
       const allInitial: WalletData[] = [
         ...resolveErrors,
         ...resolveResults.map(({ input, polymarket }) => ({
@@ -268,13 +264,11 @@ function App() {
       setProgress({ total: resolveErrors.length + resolveResults.length, completed: resolveErrors.length, isLoading: true })
 
     } else {
-      // Polymarket 地址模式：直接查询
       queryAddresses = addresses.map((addr) => ({ input: addr, polymarket: addr }))
 
       setResults([])
       setProgress({ total: addresses.length, completed: 0, isLoading: true })
 
-      // 初始化所有钱包为 loading 状态
       const initialResults: WalletData[] = addresses.map((addr) => ({
         address: addr,
         profit: 0,
@@ -295,10 +289,6 @@ function App() {
     // ====== 开始查询数据 ======
     const concurrency = proxyConfig.enabled ? 8 : 3
     const queue = createQueue(concurrency)
-    let completed = addrType === 'account' ? queryAddresses.length - queryAddresses.length : 0
-
-    // 用于收集最终结果（用于记忆查询保存）
-    const finalResultsMap = new Map<string, WalletData>()
 
     const tasks = queryAddresses.map(({ input, polymarket }, idx) =>
       queue.add(async () => {
@@ -309,16 +299,13 @@ function App() {
           polymarket,
           proxyConfig.enabled ? proxyConfig : undefined
         )
-        // 如果是账户地址模式，保留原始输入地址
         if (addrType === 'account' && input !== polymarket) {
           data.originalAddress = input
         }
-        completed++
         setProgress((prev) => ({ ...prev, completed: prev.completed + 1 }))
         setResults((prev) =>
           prev.map((r) => (r.address === polymarket ? data : r))
         )
-        finalResultsMap.set(polymarket, data)
         return data
       })
     )
@@ -328,7 +315,6 @@ function App() {
 
     // 如果是记忆查询，查询完成后自动保存
     if (isMemo) {
-      // 获取最终的完整结果列表
       setResults((prev) => {
         const timeStr = new Date().toLocaleString('zh-CN')
         saveToStorage(STORAGE_KEY_MEMO_RESULTS, prev)
@@ -364,7 +350,6 @@ function App() {
     const setResults = getSetResultsForTab(activeTab)
     setResults((prev) => {
       const updated = prev.filter((r) => r.address !== address)
-      // 如果是记忆查询，同步更新 localStorage
       if (activeTab === 'memo') {
         if (updated.length > 0) {
           saveToStorage(STORAGE_KEY_MEMO_RESULTS, updated)
@@ -372,7 +357,6 @@ function App() {
           saveToStorage(STORAGE_KEY_MEMO_TIME, timeStr)
           setMemoSavedTime(timeStr)
         } else {
-          // 删完了就清除
           removeFromStorage(STORAGE_KEY_MEMO_RESULTS)
           removeFromStorage(STORAGE_KEY_MEMO_TIME)
           setMemoSavedTime('')
@@ -399,7 +383,6 @@ function App() {
     if (currentResults.length === 0) return
     const addresses = currentResults.map((r) => r.address)
     const isMemo = activeTab === 'memo'
-    // 刷新全部时直接用 polymarket 地址模式，因为地址已经是解析后的
     await runQuery(addresses, activeTab, isMemo, 'polymarket')
   }, [currentResults, activeTab, runQuery])
 
@@ -490,17 +473,6 @@ function App() {
                 <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
               )}
             </button>
-            <button
-              onClick={() => setAddressDrawerOpen(true)}
-              className="relative px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors"
-            >
-              地址管理
-              {savedAddresses.length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 flex items-center justify-center text-xs font-bold text-white bg-amber-500 rounded-full border-2 border-white">
-                  {savedAddresses.length}
-                </span>
-              )}
-            </button>
           </div>
         </div>
       </header>
@@ -514,23 +486,6 @@ function App() {
         <ProxySettings
           proxyConfig={proxyConfig}
           onProxyChange={handleProxyChange}
-        />
-      </Drawer>
-
-      {/* 地址管理抽屉 */}
-      <Drawer
-        open={addressDrawerOpen}
-        onClose={() => setAddressDrawerOpen(false)}
-        title="地址管理"
-      >
-        <AddressManager
-          savedAddresses={savedAddresses}
-          onSave={handleSaveAddresses}
-          onQuery={(addresses) => {
-            setAddressDrawerOpen(false)
-            return handleQuery(addresses)
-          }}
-          isLoading={currentProgress.isLoading}
         />
       </Drawer>
 
@@ -552,7 +507,8 @@ function App() {
           <div className="mt-8">
             <ResultsTable
               results={currentResults}
-              addressNotes={getNotes()}
+              addressNotes={addressNotes}
+              onNoteChange={handleNoteChange}
               isLoading={currentProgress.isLoading}
               onRefreshSingle={handleRefreshSingle}
               onRefreshAll={handleRefreshAll}

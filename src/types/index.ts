@@ -21,6 +21,8 @@ export interface Position {
 /** 钱包分析数据 */
 export interface WalletData {
   address: string
+  /** 原始输入地址（账户地址模式下为 owner 地址） */
+  originalAddress?: string
   /** 盈亏（历史累计，来自 lb-api） */
   profit: number
   /** 可用余额（链上 USDC.e 查询） */
@@ -85,3 +87,6 @@ export interface ProxyConfig {
   /** 密码 */
   password: string
 }
+
+/** 地址类型 */
+export type AddressType = 'polymarket' | 'account'

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import type { WalletData, QueryProgress, ProxyConfig } from '@/types'
-import { fetchWalletData } from '@/services/polymarket'
+import type { WalletData, QueryProgress, ProxyConfig, AddressType } from '@/types'
+import { fetchWalletData, resolveAccountToPolymarket } from '@/services/polymarket'
 import { createQueue } from '@/services/queue'
 import { SearchSection } from '@/components/SearchSection'
 import { ResultsTable } from '@/components/ResultsTable'
@@ -13,8 +13,8 @@ const STORAGE_KEY_ADDRESSES = 'polymarket_saved_addresses'
 const STORAGE_KEY_MEMO_RESULTS = 'polymarket_memo_results'
 const STORAGE_KEY_MEMO_TIME = 'polymarket_memo_time'
 
-/** 每个请求之间的延迟（毫秒），避免触发 API 限流 */
-const REQUEST_DELAY_MS = 300
+/** 每个请求之间的延迟（毫秒） */
+const REQUEST_DELAY_MS = 200
 
 const DEFAULT_PROXY: ProxyConfig = {
   enabled: false,
@@ -59,6 +59,9 @@ function App() {
 
   // ====== 当前激活的标签页 ======
   const [activeTab, setActiveTab] = useState<TabMode>(hasCachedMemo ? 'memo' : 'single')
+
+  // ====== 地址类型 ======
+  const [addressType, setAddressType] = useState<AddressType>('polymarket')
 
   // ====== 三个标签页各自独立的结果 ======
   const [singleResults, setSingleResults] = useState<WalletData[]>([])
@@ -144,54 +147,178 @@ function App() {
     addresses: string[],
     targetTab: TabMode,
     isMemo: boolean,
+    addrType: AddressType = 'polymarket',
   ) => {
     const setResults = getSetResultsForTab(targetTab)
     const setProgress = getSetProgressForTab(targetTab)
 
     if (isMemo) isMemoQueryRef.current = true
 
-    setResults([])
-    setProgress({ total: addresses.length, completed: 0, isLoading: true })
+    // ====== 账户地址模式：先解析为 Polymarket 地址 ======
+    let queryAddresses: { input: string; polymarket: string }[] = []
 
-    // 初始化所有钱包为 loading 状态
-    const initialResults: WalletData[] = addresses.map((addr) => ({
-      address: addr,
-      profit: 0,
-      availableBalance: 0,
-      portfolioValue: 0,
-      netWorth: 0,
-      totalVolume: 0,
-      marketsTraded: 0,
-      lastActiveDay: null,
-      activeDays: 0,
-      activeMonths: 0,
-      positions: [],
-      status: 'loading' as const,
-    }))
-    setResults(initialResults)
+    if (addrType === 'account') {
+      // 先显示"正在解析账户地址"的状态
+      setResults([])
+      setProgress({ total: addresses.length, completed: 0, isLoading: true })
 
-    const concurrency = proxyConfig.enabled ? 8 : 5
+      const resolveResults: { input: string; polymarket: string }[] = []
+
+      // 初始化所有地址为 loading 状态
+      const resolvingResults: WalletData[] = addresses.map((addr) => ({
+        address: addr,
+        profit: 0,
+        availableBalance: 0,
+        portfolioValue: 0,
+        netWorth: 0,
+        totalVolume: 0,
+        marketsTraded: 0,
+        lastActiveDay: null,
+        activeDays: 0,
+        activeMonths: 0,
+        positions: [],
+        status: 'loading' as const,
+        errorMessage: '正在识别关联的 Polymarket 地址...',
+      }))
+      setResults(resolvingResults)
+
+      // 并发解析账户地址
+      const resolveQueue = createQueue(3)
+      const resolveErrors: WalletData[] = []
+
+      const resolveTasks = addresses.map((addr) =>
+        resolveQueue.add(async () => {
+          try {
+            const safes = await resolveAccountToPolymarket(addr)
+            if (safes.length === 0) {
+              resolveErrors.push({
+                address: addr,
+                profit: 0,
+                availableBalance: 0,
+                portfolioValue: 0,
+                netWorth: 0,
+                totalVolume: 0,
+                marketsTraded: 0,
+                lastActiveDay: null,
+                activeDays: 0,
+                activeMonths: 0,
+                positions: [],
+                status: 'error' as const,
+                errorMessage: '未找到关联的 Polymarket 账户',
+              })
+            } else {
+              for (const safe of safes) {
+                resolveResults.push({ input: addr, polymarket: safe })
+              }
+            }
+          } catch {
+            resolveErrors.push({
+              address: addr,
+              profit: 0,
+              availableBalance: 0,
+              portfolioValue: 0,
+              netWorth: 0,
+              totalVolume: 0,
+              marketsTraded: 0,
+              lastActiveDay: null,
+              activeDays: 0,
+              activeMonths: 0,
+              positions: [],
+              status: 'error' as const,
+              errorMessage: '账户地址解析失败',
+            })
+          }
+        })
+      )
+
+      await Promise.allSettled(resolveTasks)
+
+      if (resolveResults.length === 0) {
+        // 所有地址都解析失败
+        setResults(resolveErrors)
+        setProgress({ total: addresses.length, completed: addresses.length, isLoading: false })
+        if (isMemo) {
+          isMemoQueryRef.current = false
+        }
+        return
+      }
+
+      queryAddresses = resolveResults
+
+      // 更新结果：先放入解析失败的，再为成功解析的创建 loading 占位
+      const allInitial: WalletData[] = [
+        ...resolveErrors,
+        ...resolveResults.map(({ input, polymarket }) => ({
+          address: polymarket,
+          originalAddress: input,
+          profit: 0,
+          availableBalance: 0,
+          portfolioValue: 0,
+          netWorth: 0,
+          totalVolume: 0,
+          marketsTraded: 0,
+          lastActiveDay: null,
+          activeDays: 0,
+          activeMonths: 0,
+          positions: [],
+          status: 'loading' as const,
+        })),
+      ]
+      setResults(allInitial)
+      setProgress({ total: resolveErrors.length + resolveResults.length, completed: resolveErrors.length, isLoading: true })
+
+    } else {
+      // Polymarket 地址模式：直接查询
+      queryAddresses = addresses.map((addr) => ({ input: addr, polymarket: addr }))
+
+      setResults([])
+      setProgress({ total: addresses.length, completed: 0, isLoading: true })
+
+      // 初始化所有钱包为 loading 状态
+      const initialResults: WalletData[] = addresses.map((addr) => ({
+        address: addr,
+        profit: 0,
+        availableBalance: 0,
+        portfolioValue: 0,
+        netWorth: 0,
+        totalVolume: 0,
+        marketsTraded: 0,
+        lastActiveDay: null,
+        activeDays: 0,
+        activeMonths: 0,
+        positions: [],
+        status: 'loading' as const,
+      }))
+      setResults(initialResults)
+    }
+
+    // ====== 开始查询数据 ======
+    const concurrency = proxyConfig.enabled ? 8 : 3
     const queue = createQueue(concurrency)
-    let completed = 0
+    let completed = addrType === 'account' ? queryAddresses.length - queryAddresses.length : 0
 
-    const finalResults: WalletData[] = [...initialResults]
+    // 用于收集最终结果（用于记忆查询保存）
+    const finalResultsMap = new Map<string, WalletData>()
 
-    const tasks = addresses.map((addr, idx) =>
+    const tasks = queryAddresses.map(({ input, polymarket }, idx) =>
       queue.add(async () => {
         if (idx > 0) {
           await sleep(REQUEST_DELAY_MS)
         }
         const data = await fetchWalletData(
-          addr,
+          polymarket,
           proxyConfig.enabled ? proxyConfig : undefined
         )
+        // 如果是账户地址模式，保留原始输入地址
+        if (addrType === 'account' && input !== polymarket) {
+          data.originalAddress = input
+        }
         completed++
-        setProgress((prev) => ({ ...prev, completed }))
+        setProgress((prev) => ({ ...prev, completed: prev.completed + 1 }))
         setResults((prev) =>
-          prev.map((r) => (r.address === addr ? data : r))
+          prev.map((r) => (r.address === polymarket ? data : r))
         )
-        const i = finalResults.findIndex((r) => r.address === addr)
-        if (i !== -1) finalResults[i] = data
+        finalResultsMap.set(polymarket, data)
         return data
       })
     )
@@ -201,23 +328,27 @@ function App() {
 
     // 如果是记忆查询，查询完成后自动保存
     if (isMemo) {
-      const timeStr = new Date().toLocaleString('zh-CN')
-      saveToStorage(STORAGE_KEY_MEMO_RESULTS, finalResults)
-      saveToStorage(STORAGE_KEY_MEMO_TIME, timeStr)
-      setMemoSavedTime(timeStr)
+      // 获取最终的完整结果列表
+      setResults((prev) => {
+        const timeStr = new Date().toLocaleString('zh-CN')
+        saveToStorage(STORAGE_KEY_MEMO_RESULTS, prev)
+        saveToStorage(STORAGE_KEY_MEMO_TIME, timeStr)
+        setMemoSavedTime(timeStr)
+        return prev
+      })
       isMemoQueryRef.current = false
     }
   }, [proxyConfig]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** 单个查询 / 批量查询 */
   const handleQuery = useCallback(async (addresses: string[]) => {
-    await runQuery(addresses, activeTab, false)
-  }, [runQuery, activeTab])
+    await runQuery(addresses, activeTab, false, addressType)
+  }, [runQuery, activeTab, addressType])
 
   /** 记忆查询 */
   const handleMemoQuery = useCallback(async (addresses: string[]) => {
-    await runQuery(addresses, 'memo', true)
-  }, [runQuery])
+    await runQuery(addresses, 'memo', true, addressType)
+  }, [runQuery, addressType])
 
   /** 清除已保存的记忆查询数据 */
   const handleMemoClear = useCallback(() => {
@@ -259,7 +390,7 @@ function App() {
     )
     const setResults = getSetResultsForTab(activeTab)
     setResults((prev) =>
-      prev.map((r) => (r.address === address ? data : r))
+      prev.map((r) => (r.address === address ? { ...data, originalAddress: r.originalAddress } : r))
     )
   }, [proxyConfig, activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -268,7 +399,8 @@ function App() {
     if (currentResults.length === 0) return
     const addresses = currentResults.map((r) => r.address)
     const isMemo = activeTab === 'memo'
-    await runQuery(addresses, activeTab, isMemo)
+    // 刷新全部时直接用 polymarket 地址模式，因为地址已经是解析后的
+    await runQuery(addresses, activeTab, isMemo, 'polymarket')
   }, [currentResults, activeTab, runQuery])
 
   /** 重试失败 */
@@ -294,7 +426,7 @@ function App() {
       )
     )
 
-    const concurrency = proxyConfig.enabled ? 8 : 5
+    const concurrency = proxyConfig.enabled ? 8 : 3
     const queue = createQueue(concurrency)
     let completed = 0
 
@@ -310,7 +442,7 @@ function App() {
         completed++
         setProgress((prev) => ({ ...prev, completed }))
         setResults((prev) =>
-          prev.map((r) => (r.address === wallet.address ? data : r))
+          prev.map((r) => (r.address === wallet.address ? { ...data, originalAddress: r.originalAddress } : r))
         )
         return data
       })
@@ -412,6 +544,8 @@ function App() {
           progress={currentProgress}
           proxyConfig={proxyConfig}
           hasResults={currentResults.length > 0}
+          addressType={addressType}
+          onAddressTypeChange={setAddressType}
         />
 
         {currentResults.length > 0 && (

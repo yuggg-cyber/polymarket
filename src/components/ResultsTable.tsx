@@ -524,6 +524,14 @@ export function ResultsTable({
               </span>
             )}
           </div>
+          {/* 原始账户地址（账户地址模式下显示） */}
+          {wallet.originalAddress && wallet.originalAddress !== wallet.address && (
+            <div className="flex items-center gap-1 mt-1">
+              <span className="text-xs text-purple-500 font-mono" title={`账户地址: ${wallet.originalAddress}`}>
+                账户: {shortenAddress(wallet.originalAddress)}
+              </span>
+            </div>
+          )}
           {/* 代理出口 IP */}
           {wallet.proxyIp && isDataReady && (
             <div className="flex items-center gap-1 mt-1">

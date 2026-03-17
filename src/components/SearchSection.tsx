@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import type { QueryProgress, ProxyConfig } from '@/types'
+import type { QueryProgress, ProxyConfig, AddressType } from '@/types'
 
 const MAX_BATCH_ADDRESSES = 200
 const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/
@@ -20,6 +20,8 @@ interface SearchSectionProps {
   progress: QueryProgress
   proxyConfig: ProxyConfig
   hasResults: boolean
+  addressType: AddressType
+  onAddressTypeChange: (type: AddressType) => void
 }
 
 export function SearchSection({
@@ -30,6 +32,8 @@ export function SearchSection({
   progress,
   proxyConfig,
   hasResults,
+  addressType,
+  onAddressTypeChange,
 }: SearchSectionProps) {
   const [singleAddress, setSingleAddress] = useState('')
   const [batchAddresses, setBatchAddresses] = useState('')
@@ -151,6 +155,9 @@ export function SearchSection({
     (activeTab === 'batch' && (isBatchOverLimit || !!batchError || parsedCount === 0)) ||
     (activeTab === 'memo' && (isMemoOverLimit || !!memoError || memoParsedCount === 0))
 
+  const addressTypeLabel = addressType === 'account' ? '账户地址' : 'Polymarket 地址'
+  const placeholderSuffix = addressType === 'account' ? '（支持 MetaMask 等账户地址）' : '（0x...）'
+
   return (
     <div className="mx-auto w-full max-w-4xl">
       <Tabs
@@ -181,12 +188,43 @@ export function SearchSection({
           </TabsList>
         </div>
 
+        {/* 地址类型切换 */}
+        <div className="mb-4 flex justify-center">
+          <div className="inline-flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg p-1">
+            <button
+              onClick={() => onAddressTypeChange('polymarket')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                addressType === 'polymarket'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Polymarket 地址
+            </button>
+            <button
+              onClick={() => onAddressTypeChange('account')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                addressType === 'account'
+                  ? 'bg-white text-purple-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              账户地址
+            </button>
+          </div>
+          {addressType === 'account' && (
+            <span className="ml-3 text-xs text-purple-500 self-center">
+              将自动识别关联的 Polymarket 钱包地址
+            </span>
+          )}
+        </div>
+
         <TabsContent value="single">
           <div className="flex gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
               <Input
-                placeholder="输入 Polymarket 钱包地址（0x...）"
+                placeholder={`输入${addressTypeLabel}${placeholderSuffix}`}
                 value={singleAddress}
                 onChange={(e) => handleSingleChange(e.target.value)}
                 onKeyDown={(e) => {
@@ -219,7 +257,7 @@ export function SearchSection({
         <TabsContent value="batch">
           <div className="space-y-4">
             <Textarea
-              placeholder={`输入钱包地址，每行一个或用逗号分隔（最多 ${MAX_BATCH_ADDRESSES} 个）`}
+              placeholder={`输入${addressTypeLabel}，每行一个或用逗号分隔（最多 ${MAX_BATCH_ADDRESSES} 个）`}
               value={batchAddresses}
               onChange={(e) => handleBatchChange(e.target.value)}
               className="min-h-[160px] bg-white border-gray-200 text-base resize-y rounded-xl shadow-sm focus:border-blue-400 focus:ring-blue-400"
@@ -258,7 +296,7 @@ export function SearchSection({
         <TabsContent value="memo">
           <div className="space-y-4">
             <Textarea
-              placeholder={`输入钱包地址，每行一个或用逗号分隔（最多 ${MAX_BATCH_ADDRESSES} 个）`}
+              placeholder={`输入${addressTypeLabel}，每行一个或用逗号分隔（最多 ${MAX_BATCH_ADDRESSES} 个）`}
               value={memoAddresses}
               onChange={(e) => handleMemoChange(e.target.value)}
               className="min-h-[160px] bg-white border-gray-200 text-base resize-y rounded-xl shadow-sm focus:border-amber-400 focus:ring-amber-400"
@@ -301,7 +339,7 @@ export function SearchSection({
         <div className="mt-8 space-y-3 bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-600 font-medium">
-              正在查询钱包数据...
+              {addressType === 'account' ? '正在识别并查询钱包数据...' : '正在查询钱包数据...'}
               {proxyConfig.enabled && <span className="text-green-500 ml-2">(代理模式)</span>}
             </span>
             <span className="text-blue-600 font-semibold">
@@ -321,7 +359,7 @@ export function SearchSection({
           <Search className="mb-4 h-14 w-14 text-gray-300" />
           <p className="text-lg font-medium text-gray-600">输入钱包地址开始分析</p>
           <p className="mt-2 text-sm text-gray-400">
-            支持查询盈亏、交易额、可用余额、持仓估值、活跃度等数据
+            支持 Polymarket 地址和账户地址（自动识别关联钱包）
           </p>
         </div>
       )}

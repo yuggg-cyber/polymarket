@@ -101,49 +101,6 @@ function randomSessionId(): string {
 }
 
 // ============================================================
-// 令牌桶限速器（用于 lb-api 的 3 请求/秒限速）
-// ============================================================
-
-class TokenBucket {
-  private tokens: number
-  private lastRefill: number
-  private readonly maxTokens: number
-  private readonly refillRate: number // tokens per ms
-  constructor(maxTokens: number, refillPerSecond: number) {
-    this.maxTokens = maxTokens
-    this.tokens = maxTokens
-    this.refillRate = refillPerSecond / 1000
-    this.lastRefill = Date.now()
-  }
-
-  private refill() {
-    const now = Date.now()
-    const elapsed = now - this.lastRefill
-    this.tokens = Math.min(this.maxTokens, this.tokens + elapsed * this.refillRate)
-    this.lastRefill = now
-  }
-
-  async acquire(): Promise<void> {
-    this.refill()
-    if (this.tokens >= 1) {
-      this.tokens -= 1
-      return
-    }
-    const waitMs = Math.ceil((1 - this.tokens) / this.refillRate)
-    await new Promise<void>((resolve) => {
-      setTimeout(() => {
-        this.refill()
-        this.tokens = Math.max(0, this.tokens - 1)
-        resolve()
-      }, waitMs)
-    })
-  }
-}
-
-// lb-api 限速: 3 请求/秒，令牌桶容量设为 2（留余量）
-const lbApiLimiter = new TokenBucket(2, 2.5)
-
-// ============================================================
 // HTTP helpers（直连模式）
 // ============================================================
 
@@ -181,12 +138,6 @@ async function fetchJSON<T>(url: string, retries = MAX_RETRIES): Promise<T> {
     }
   }
   throw lastError
-}
-
-/** 带 lb-api 限速的 fetchJSON */
-async function fetchJSONWithLbLimit<T>(url: string, retries = MAX_RETRIES): Promise<T> {
-  await lbApiLimiter.acquire()
-  return fetchJSON<T>(url, retries)
 }
 
 // ============================================================
@@ -243,18 +194,56 @@ async function getUSDCBalance(wallet: string): Promise<number> {
 }
 
 // ============================================================
+// 账户地址 → Polymarket 地址（Safe Global API）
+// ============================================================
+
+const MAX_SAFES = 5
+
+interface SafeApiResponse {
+  safes?: string[] | Record<string, string[]>
+  '137'?: string[]
+}
+
+/**
+ * 通过 Safe Global API 查询某个 owner 地址关联的 Safe 多签钱包地址（Polygon 链）
+ * Polymarket 用户的交易钱包就是 Safe 多签钱包
+ */
+export async function resolveAccountToPolymarket(ownerAddress: string): Promise<string[]> {
+  const url = `https://safe-client.safe.global/v1/chains/137/owners/${ownerAddress}/safes`
+  try {
+    const res = await fetchJSON<SafeApiResponse>(url)
+    let safes: string[] = []
+    if (Array.isArray(res?.safes)) {
+      safes = res.safes as string[]
+    } else if (Array.isArray(res)) {
+      safes = res
+    } else if (Array.isArray((res as SafeApiResponse)?.['137'])) {
+      safes = (res as SafeApiResponse)['137']!
+    } else if (res?.safes && typeof res.safes === 'object' && !Array.isArray(res.safes)) {
+      const safeObj = res.safes as Record<string, string[]>
+      if (Array.isArray(safeObj['137'])) {
+        safes = safeObj['137']
+      }
+    }
+    return safes.slice(0, MAX_SAFES)
+  } catch {
+    return []
+  }
+}
+
+// ============================================================
 // 直连模式：Data fetching functions（抛出异常而非返回 0）
 // ============================================================
 
 async function getVolume(wallet: string): Promise<number> {
-  const data = await fetchJSONWithLbLimit<LeaderboardEntry[]>(
+  const data = await fetchJSON<LeaderboardEntry[]>(
     `${LB_API}/volume?window=all&limit=1&address=${wallet}`
   )
   return data?.[0]?.amount ?? 0
 }
 
 async function getProfit(wallet: string): Promise<number> {
-  const data = await fetchJSONWithLbLimit<LeaderboardEntry[]>(
+  const data = await fetchJSON<LeaderboardEntry[]>(
     `${LB_API}/profit?window=all&limit=1&address=${wallet}`
   )
   return data?.[0]?.amount ?? 0

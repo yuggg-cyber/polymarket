@@ -150,7 +150,7 @@ export function exportToExcel(
         p.cashPnl,
         p.totalBought,
         p.realizedPnl,
-        p.redeemable ? '可赎回' : p.mergeable ? '可合并' : '持有中',
+        p.redeemable ? (p.currentValue > 0 ? '可赎回' : '已结算') : p.mergeable ? '可合并' : '持有中',
         p.endDate ? new Date(p.endDate).toLocaleDateString('zh-CN') : '',
       ])
     }

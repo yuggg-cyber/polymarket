@@ -181,9 +181,11 @@ function EditableNoteCell({
 // 仓位详情行
 // ============================================================
 
-/** 获取持仓状态的排序权重：持有中=0，可合并=1，可赎回=2 */
+/** 获取持仓状态的排序权重：持有中=0，可合并=1，可赎回(盈利)=2，已结算(亏损)=3 */
 function getPositionStatusWeight(pos: Position): number {
-  if (pos.redeemable) return 2
+  if (pos.redeemable) {
+    return pos.currentValue > 0 ? 2 : 3
+  }
   if (pos.mergeable) return 1
   return 0
 }
@@ -268,7 +270,11 @@ function PositionDetailRows({ positions }: { positions: Position[] }) {
             <td className="px-3 py-2.5 text-right text-sm font-mono text-gray-700">{formatUSD(pos.totalBought)}</td>
             <td className="px-3 py-2.5 text-center">
               {pos.redeemable ? (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium">可赎回</span>
+                pos.currentValue > 0 ? (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600 font-medium">可赎回</span>
+                ) : (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-400 font-medium">已结算</span>
+                )
               ) : pos.mergeable ? (
                 <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-600 font-medium">可合并</span>
               ) : (

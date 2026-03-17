@@ -1,3 +1,18 @@
+/** 已平仓位（历史战绩） */
+export interface ClosedPosition {
+  title: string
+  slug: string
+  eventSlug: string
+  icon: string
+  outcome: string
+  avgPrice: number
+  curPrice: number
+  totalBought: number
+  realizedPnl: number
+  timestamp: number
+  endDate: string
+}
+
 /** 单个持仓仓位 */
 export interface Position {
   title: string
@@ -72,6 +87,12 @@ export interface QueryProgress {
   total: number
   completed: number
   isLoading: boolean
+  /** 当前正在查询的地址（用于细化进度展示） */
+  currentAddress?: string
+  /** 失败数量 */
+  failedCount?: number
+  /** 查询开始时间戳 */
+  startTime?: number
 }
 
 /** 代理配置 */

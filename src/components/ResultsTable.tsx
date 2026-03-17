@@ -19,9 +19,12 @@ import {
   Trash2,
   X,
   Pencil,
+  History,
+  TrendingUp,
 } from 'lucide-react'
-import type { WalletData, Position, SortField, SortDirection } from '@/types'
+import type { WalletData, Position, ClosedPosition, SortField, SortDirection } from '@/types'
 import { exportToExcel, exportToCSV, exportToJSON } from '@/services/export'
+import { getClosedPositions } from '@/services/polymarket'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 // ============================================================
@@ -191,43 +194,51 @@ function getPositionStatusWeight(pos: Position): number {
   return 0
 }
 
-function PositionDetailRows({ positions }: { positions: Position[] }) {
-  if (positions.length === 0) {
+/** 历史战绩行 */
+function ClosedPositionRows({ closedPositions, isLoading }: { closedPositions: ClosedPosition[]; isLoading: boolean }) {
+  if (isLoading) {
     return (
       <tr>
         <td colSpan={TOTAL_COLS} className="text-center text-gray-400 py-6 bg-gray-50/80">
-          暂无持仓
+          <span className="inline-flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" /> 加载历史战绩中...
+          </span>
         </td>
       </tr>
     )
   }
 
-  // 排序：持有中 → 可合并 → 可赎回，同状态内按买入总额降序
-  const sortedPositions = [...positions].sort((a, b) => {
-    const weightA = getPositionStatusWeight(a)
-    const weightB = getPositionStatusWeight(b)
-    if (weightA !== weightB) return weightA - weightB
-    return b.totalBought - a.totalBought
-  })
+  if (closedPositions.length === 0) {
+    return (
+      <tr>
+        <td colSpan={TOTAL_COLS} className="text-center text-gray-400 py-6 bg-gray-50/80">
+          暂无历史战绩
+        </td>
+      </tr>
+    )
+  }
 
   return (
     <>
-      <tr className="bg-blue-50/60 border-b border-blue-100">
-        <td colSpan={4} className="px-4 py-2.5 text-sm font-semibold text-blue-700">
-          持仓明细
+      <tr className="bg-amber-50/60 border-b border-amber-100">
+        <td colSpan={4} className="px-4 py-2.5 text-sm font-semibold text-amber-700">
+          历史战绩
+          <span className="ml-2 text-xs font-normal text-amber-500">({closedPositions.length} 条记录)</span>
         </td>
         <td className="px-3 py-2.5 text-sm font-semibold text-gray-500">方向</td>
-        <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">数量</td>
+        <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">平仓时间</td>
         <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">均价</td>
-        <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">现价</td>
-        <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">当前价值</td>
-        <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">浮动盈亏</td>
+        <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">结算价</td>
         <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">买入总额</td>
-        <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-center">状态</td>
+        <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">实现盈亏</td>
+        <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">收益率</td>
+        <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-center">结果</td>
         <td colSpan={2} className="px-3 py-2.5 text-sm font-semibold text-gray-500">截止日期</td>
       </tr>
-      {sortedPositions.map((pos, idx) => {
-        const pnlColor = pos.cashPnl >= 0 ? 'text-emerald-600' : 'text-red-500'
+      {closedPositions.map((pos, idx) => {
+        const pnlColor = pos.realizedPnl >= 0 ? 'text-emerald-600' : 'text-red-500'
+        const isWin = pos.realizedPnl >= 0
+        const returnRate = pos.totalBought > 0 ? (pos.realizedPnl / pos.totalBought * 100) : 0
         return (
           <tr key={idx} className="bg-gray-50/40 hover:bg-gray-100/60 border-b border-gray-100">
             <td colSpan={4} className="px-4 py-2.5">
@@ -261,25 +272,23 @@ function PositionDetailRows({ positions }: { positions: Position[] }) {
                 {pos.outcome}
               </span>
             </td>
-            <td className="px-3 py-2.5 text-right text-sm font-mono text-gray-700">{formatExact(pos.size)}</td>
+            <td className="px-3 py-2.5 text-right text-sm text-gray-500">
+              {pos.timestamp ? new Date(pos.timestamp * 1000).toLocaleDateString('zh-CN') : '-'}
+            </td>
             <td className="px-3 py-2.5 text-right text-sm font-mono text-gray-700">${formatExact(pos.avgPrice)}</td>
             <td className="px-3 py-2.5 text-right text-sm font-mono text-gray-700">${formatExact(pos.curPrice)}</td>
-            <td className="px-3 py-2.5 text-right text-sm font-mono text-gray-700">{formatUSD(pos.currentValue)}</td>
-            <td className={`px-3 py-2.5 text-right text-sm font-mono font-semibold ${pnlColor}`}>
-              {pos.cashPnl >= 0 ? '+' : ''}{formatUSD(pos.cashPnl)}
-            </td>
             <td className="px-3 py-2.5 text-right text-sm font-mono text-gray-700">{formatUSD(pos.totalBought)}</td>
+            <td className={`px-3 py-2.5 text-right text-sm font-mono font-semibold ${pnlColor}`}>
+              {pos.realizedPnl >= 0 ? '+' : ''}{formatUSD(pos.realizedPnl)}
+            </td>
+            <td className={`px-3 py-2.5 text-right text-sm font-mono font-semibold ${pnlColor}`}>
+              {returnRate >= 0 ? '+' : ''}{returnRate.toFixed(1)}%
+            </td>
             <td className="px-3 py-2.5 text-center">
-              {pos.redeemable ? (
-                pos.currentValue > 0 ? (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600 font-medium">可赎回</span>
-                ) : (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-400 font-medium">已结算</span>
-                )
-              ) : pos.mergeable ? (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-600 font-medium">可合并</span>
+              {isWin ? (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600 font-medium">盈利</span>
               ) : (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">持有中</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-400 font-medium">亏损</span>
               )}
             </td>
             <td colSpan={2} className="px-3 py-2.5 text-sm text-gray-500">
@@ -288,6 +297,199 @@ function PositionDetailRows({ positions }: { positions: Position[] }) {
           </tr>
         )
       })}
+    </>
+  )
+}
+
+/** 带 Tab 切换的仓位详情行 */
+function PositionDetailRows({ positions, walletAddress }: { positions: Position[]; walletAddress: string }) {
+  const [activeTab, setActiveTab] = useState<'current' | 'history'>('current')
+  const [closedPositions, setClosedPositions] = useState<ClosedPosition[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyLoaded, setHistoryLoaded] = useState(false)
+
+  const handleTabChange = async (tab: 'current' | 'history') => {
+    setActiveTab(tab)
+    if (tab === 'history' && !historyLoaded) {
+      setHistoryLoading(true)
+      try {
+        const data = await getClosedPositions(walletAddress)
+        setClosedPositions(data)
+        setHistoryLoaded(true)
+      } catch {
+        setClosedPositions([])
+        setHistoryLoaded(true)
+      } finally {
+        setHistoryLoading(false)
+      }
+    }
+  }
+
+  // 排序：持有中 → 可合并 → 可赎回，同状态内按买入总额降序
+  const sortedPositions = useMemo(() => {
+    return [...positions].sort((a, b) => {
+      const weightA = getPositionStatusWeight(a)
+      const weightB = getPositionStatusWeight(b)
+      if (weightA !== weightB) return weightA - weightB
+      return b.totalBought - a.totalBought
+    })
+  }, [positions])
+
+  // 计算历史战绩统计
+  const historyStats = useMemo(() => {
+    if (closedPositions.length === 0) return null
+    const wins = closedPositions.filter(p => p.realizedPnl >= 0).length
+    const totalPnl = closedPositions.reduce((s, p) => s + p.realizedPnl, 0)
+    const winRate = (wins / closedPositions.length * 100).toFixed(1)
+    return { wins, total: closedPositions.length, winRate, totalPnl }
+  }, [closedPositions])
+
+  return (
+    <>
+      {/* Tab 切换行 */}
+      <tr className="bg-gray-50 border-b border-gray-200">
+        <td colSpan={TOTAL_COLS} className="px-4 py-2">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => handleTabChange('current')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'current'
+                  ? 'bg-blue-100 text-blue-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              当前持仓
+              <span className="text-xs ml-0.5 opacity-70">({positions.length})</span>
+            </button>
+            <button
+              onClick={() => handleTabChange('history')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'history'
+                  ? 'bg-amber-100 text-amber-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              历史战绩
+              {historyLoaded && <span className="text-xs ml-0.5 opacity-70">({closedPositions.length})</span>}
+              {historyLoading && <Loader2 className="w-3 h-3 animate-spin ml-1" />}
+            </button>
+
+            {/* 历史战绩统计摘要 */}
+            {activeTab === 'history' && historyStats && (
+              <div className="flex items-center gap-3 ml-auto text-xs">
+                <span className="text-gray-500">
+                  胜率: <strong className="text-gray-700">{historyStats.winRate}%</strong>
+                  <span className="text-gray-400 ml-1">({historyStats.wins}/{historyStats.total})</span>
+                </span>
+                <span className="text-gray-500">
+                  总实现盈亏: <strong className={historyStats.totalPnl >= 0 ? 'text-emerald-600' : 'text-red-500'}>
+                    {historyStats.totalPnl >= 0 ? '+' : ''}{formatUSD(historyStats.totalPnl)}
+                  </strong>
+                </span>
+              </div>
+            )}
+          </div>
+        </td>
+      </tr>
+
+      {/* 当前持仓内容 */}
+      {activeTab === 'current' && (
+        <>
+          {positions.length === 0 ? (
+            <tr>
+              <td colSpan={TOTAL_COLS} className="text-center text-gray-400 py-6 bg-gray-50/80">
+                暂无持仓
+              </td>
+            </tr>
+          ) : (
+            <>
+              <tr className="bg-blue-50/60 border-b border-blue-100">
+                <td colSpan={4} className="px-4 py-2.5 text-sm font-semibold text-blue-700">
+                  持仓明细
+                </td>
+                <td className="px-3 py-2.5 text-sm font-semibold text-gray-500">方向</td>
+                <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">数量</td>
+                <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">均价</td>
+                <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">现价</td>
+                <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">当前价值</td>
+                <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">浮动盈亏</td>
+                <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-right">买入总额</td>
+                <td className="px-3 py-2.5 text-sm font-semibold text-gray-500 text-center">状态</td>
+                <td colSpan={2} className="px-3 py-2.5 text-sm font-semibold text-gray-500">截止日期</td>
+              </tr>
+              {sortedPositions.map((pos, idx) => {
+                const pnlColor = pos.cashPnl >= 0 ? 'text-emerald-600' : 'text-red-500'
+                return (
+                  <tr key={idx} className="bg-gray-50/40 hover:bg-gray-100/60 border-b border-gray-100">
+                    <td colSpan={4} className="px-4 py-2.5">
+                      <a
+                        href={pos.eventSlug ? `https://polymarket.com/event/${pos.eventSlug}` : (pos.slug ? `https://polymarket.com/event/${pos.slug}` : '#')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 max-w-[320px] group hover:opacity-80 transition-opacity"
+                        title={(pos.eventSlug || pos.slug) ? `查看预测市场：${pos.title}` : pos.title}
+                      >
+                        {pos.icon && (
+                          <img
+                            src={pos.icon}
+                            alt=""
+                            className="w-6 h-6 rounded flex-shrink-0"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                          />
+                        )}
+                        <span className="text-sm text-gray-800 truncate group-hover:text-blue-600 group-hover:underline">
+                          {pos.title}
+                        </span>
+                        {(pos.eventSlug || pos.slug) && (
+                          <ExternalLink className="w-3 h-3 text-gray-300 group-hover:text-blue-500 flex-shrink-0" />
+                        )}
+                      </a>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className={`text-sm font-semibold px-2 py-0.5 rounded-full ${
+                        pos.outcome === 'Yes' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
+                      }`}>
+                        {pos.outcome}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-sm font-mono text-gray-700">{formatExact(pos.size)}</td>
+                    <td className="px-3 py-2.5 text-right text-sm font-mono text-gray-700">${formatExact(pos.avgPrice)}</td>
+                    <td className="px-3 py-2.5 text-right text-sm font-mono text-gray-700">${formatExact(pos.curPrice)}</td>
+                    <td className="px-3 py-2.5 text-right text-sm font-mono text-gray-700">{formatUSD(pos.currentValue)}</td>
+                    <td className={`px-3 py-2.5 text-right text-sm font-mono font-semibold ${pnlColor}`}>
+                      {pos.cashPnl >= 0 ? '+' : ''}{formatUSD(pos.cashPnl)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-sm font-mono text-gray-700">{formatUSD(pos.totalBought)}</td>
+                    <td className="px-3 py-2.5 text-center">
+                      {pos.redeemable ? (
+                        pos.currentValue > 0 ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600 font-medium">可赎回</span>
+                        ) : (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-400 font-medium">已结算</span>
+                        )
+                      ) : pos.mergeable ? (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-600 font-medium">可合并</span>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">持有中</span>
+                      )}
+                    </td>
+                    <td colSpan={2} className="px-3 py-2.5 text-sm text-gray-500">
+                      {pos.endDate ? new Date(pos.endDate).toLocaleDateString('zh-CN') : '-'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </>
+          )}
+        </>
+      )}
+
+      {/* 历史战绩内容 */}
+      {activeTab === 'history' && (
+        <ClosedPositionRows closedPositions={closedPositions} isLoading={historyLoading} />
+      )}
     </>
   )
 }
@@ -724,7 +926,7 @@ export function ResultsTable({
     // 展开的仓位行
     if (isExpanded && isDataReady) {
       rows.push(
-        <PositionDetailRows key={wallet.address + '-pos'} positions={wallet.positions} />
+        <PositionDetailRows key={wallet.address + '-pos'} positions={wallet.positions} walletAddress={wallet.address} />
       )
     }
   }

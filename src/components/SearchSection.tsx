@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { Search, AlertCircle, Loader2 } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,68 @@ import type { QueryProgress, ProxyConfig, AddressType } from '@/types'
 
 const MAX_BATCH_ADDRESSES = 200
 const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/
+
+// ============================================================
+// 进度面板组件（带实时计时）
+// ============================================================
+
+function ProgressPanel({ progress, addressType, proxyEnabled }: {
+  progress: QueryProgress
+  addressType: AddressType
+  proxyEnabled: boolean
+}) {
+  const [tick, setTick] = useState(0)
+
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const pct = progress.total > 0 ? (progress.completed / progress.total) * 100 : 0
+  const elapsed = progress.startTime ? Math.floor((Date.now() - progress.startTime) / 1000) : 0
+  const speed = elapsed > 0 && progress.completed > 0 ? progress.completed / elapsed : 0
+  const remaining = speed > 0 ? Math.ceil((progress.total - progress.completed) / speed) : 0
+  const formatTime = (s: number) => s >= 60 ? `${Math.floor(s / 60)}分${s % 60}秒` : `${s}秒`
+
+  // suppress unused warning
+  void tick
+
+  return (
+    <div className="mt-8 space-y-3 bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-gray-600 font-medium">
+          {addressType === 'account' ? '正在识别并查询钱包数据...' : '正在查询钱包数据...'}
+          {proxyEnabled && <span className="text-green-500 ml-2">(代理模式)</span>}
+        </span>
+        <span className="text-blue-600 font-semibold">
+          {progress.completed} / {progress.total}
+          <span className="text-gray-400 font-normal ml-2">({pct.toFixed(0)}%)</span>
+        </span>
+      </div>
+      <Progress
+        value={pct}
+        className="h-2.5"
+      />
+      <div className="flex items-center justify-between text-xs text-gray-400">
+        <div className="flex items-center gap-3">
+          {progress.currentAddress && (
+            <span>当前: <span className="font-mono text-gray-500">{progress.currentAddress.slice(0, 6)}...{progress.currentAddress.slice(-4)}</span></span>
+          )}
+          {(progress.failedCount ?? 0) > 0 && (
+            <span className="text-amber-500">失败: {progress.failedCount}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {elapsed > 0 && <span>已耗时: {formatTime(elapsed)}</span>}
+          {remaining > 0 && progress.completed < progress.total && (
+            <span>预计剩余: {formatTime(remaining)}</span>
+          )}
+          {speed > 0 && <span>{speed.toFixed(1)} 个/秒</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 type TabMode = 'single' | 'batch' | 'memo'
 
@@ -336,21 +398,7 @@ export function SearchSection({
 
       {/* 进度条 */}
       {progress.isLoading && progress.total > 0 && (
-        <div className="mt-8 space-y-3 bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600 font-medium">
-              {addressType === 'account' ? '正在识别并查询钱包数据...' : '正在查询钱包数据...'}
-              {proxyConfig.enabled && <span className="text-green-500 ml-2">(代理模式)</span>}
-            </span>
-            <span className="text-blue-600 font-semibold">
-              {progress.completed} / {progress.total}
-            </span>
-          </div>
-          <Progress
-            value={(progress.completed / progress.total) * 100}
-            className="h-2.5"
-          />
-        </div>
+        <ProgressPanel progress={progress} addressType={addressType} proxyEnabled={proxyConfig.enabled} />
       )}
 
       {/* 空状态 */}

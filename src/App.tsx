@@ -158,9 +158,9 @@ function App() {
     let queryAddresses: { input: string; polymarket: string }[] = []
 
     if (addrType === 'account') {
-      // 先显示"正在解析账户地址"的状态
+      // 先显示“正在解析账户地址”的状态
       setResults([])
-      setProgress({ total: addresses.length, completed: 0, isLoading: true })
+      setProgress({ total: addresses.length, completed: 0, isLoading: true, failedCount: 0, startTime: Date.now() })
 
       // 初始化所有地址为 loading 状态
       const resolvingResults: WalletData[] = addresses.map((addr) => ({
@@ -266,7 +266,7 @@ function App() {
       queryAddresses = addresses.map((addr) => ({ input: addr, polymarket: addr }))
 
       setResults([])
-      setProgress({ total: addresses.length, completed: 0, isLoading: true })
+      setProgress({ total: addresses.length, completed: 0, isLoading: true, failedCount: 0, startTime: Date.now() })
 
       const initialResults: WalletData[] = addresses.map((addr) => ({
         address: addr,
@@ -301,7 +301,13 @@ function App() {
         if (addrType === 'account' && input !== polymarket) {
           data.originalAddress = input
         }
-        setProgress((prev) => ({ ...prev, completed: prev.completed + 1 }))
+        const isFailed = data.status === 'error' || data.status === 'partial'
+        setProgress((prev) => ({
+          ...prev,
+          completed: prev.completed + 1,
+          currentAddress: polymarket,
+          failedCount: (prev.failedCount || 0) + (isFailed ? 1 : 0),
+        }))
         setResults((prev) =>
           prev.map((r) => (r.address === polymarket ? data : r))
         )
@@ -310,7 +316,7 @@ function App() {
     )
 
     await Promise.allSettled(tasks)
-    setProgress((prev) => ({ ...prev, isLoading: false }))
+    setProgress((prev) => ({ ...prev, isLoading: false, currentAddress: undefined }))
 
     // 如果是记忆查询，查询完成后自动保存
     if (isMemo) {
@@ -434,6 +440,8 @@ function App() {
       total: failedAddresses.length,
       completed: 0,
       isLoading: true,
+      failedCount: 0,
+      startTime: Date.now(),
     }))
 
     setResults((prev) =>
@@ -458,7 +466,13 @@ function App() {
           proxyConfig.enabled ? proxyConfig : undefined
         )
         completed++
-        setProgress((prev) => ({ ...prev, completed }))
+        const isFailed = data.status === 'error' || data.status === 'partial'
+        setProgress((prev) => ({
+          ...prev,
+          completed,
+          currentAddress: wallet.address,
+          failedCount: (prev.failedCount || 0) + (isFailed ? 1 : 0),
+        }))
         setResults((prev) =>
           prev.map((r) => (r.address === wallet.address ? { ...data, originalAddress: r.originalAddress } : r))
         )
@@ -467,7 +481,7 @@ function App() {
     )
 
     await Promise.allSettled(tasks)
-    setProgress((prev) => ({ ...prev, isLoading: false }))
+    setProgress((prev) => ({ ...prev, isLoading: false, currentAddress: undefined }))
   }, [currentResults, proxyConfig, activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 当记忆查询的结果中单个地址刷新/重试完成后，同步更新 localStorage

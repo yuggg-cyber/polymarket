@@ -1,4 +1,4 @@
-import type { WalletData, Position, ProxyConfig } from '@/types'
+import type { WalletData, Position, ClosedPosition, ProxyConfig } from '@/types'
 
 const DATA_API = 'https://data-api.polymarket.com'
 const LB_API = 'https://lb-api.polymarket.com'
@@ -316,6 +316,66 @@ async function getPositions(wallet: string): Promise<PositionItem[]> {
   return await fetchJSON<PositionItem[]>(
     `${DATA_API}/positions?user=${wallet}&sizeThreshold=0`
   )
+}
+
+// ============================================================
+// 历史已平仓位查询（按时间倒序，分页获取全部）
+// ============================================================
+
+interface ClosedPositionItem {
+  proxyWallet: string
+  asset: string
+  conditionId: string
+  avgPrice: number
+  totalBought: number
+  realizedPnl: number
+  curPrice: number
+  timestamp: number
+  title: string
+  slug: string
+  icon: string
+  eventSlug?: string
+  outcome: string
+  endDate: string
+}
+
+const CLOSED_POSITIONS_PAGE_SIZE = 50
+const MAX_CLOSED_PAGES = 20
+
+export async function getClosedPositions(wallet: string): Promise<ClosedPosition[]> {
+  const addr = wallet.toLowerCase()
+  const all: ClosedPosition[] = []
+  let offset = 0
+  let pageCount = 0
+
+  while (pageCount < MAX_CLOSED_PAGES) {
+    const batch = await fetchJSON<ClosedPositionItem[]>(
+      `${DATA_API}/closed-positions?user=${addr}&limit=${CLOSED_POSITIONS_PAGE_SIZE}&offset=${offset}&sortBy=TIMESTAMP&sortDirection=DESC`
+    )
+    if (!Array.isArray(batch) || batch.length === 0) break
+
+    for (const item of batch) {
+      all.push({
+        title: item.title,
+        slug: item.slug,
+        eventSlug: item.eventSlug || '',
+        icon: item.icon,
+        outcome: item.outcome,
+        avgPrice: item.avgPrice,
+        curPrice: item.curPrice,
+        totalBought: item.totalBought,
+        realizedPnl: item.realizedPnl,
+        timestamp: item.timestamp,
+        endDate: item.endDate,
+      })
+    }
+
+    if (batch.length < CLOSED_POSITIONS_PAGE_SIZE) break
+    offset += CLOSED_POSITIONS_PAGE_SIZE
+    pageCount++
+  }
+
+  return all
 }
 
 // ============================================================

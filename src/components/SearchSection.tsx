@@ -10,7 +10,11 @@ import type { QueryProgress, ProxyConfig } from '@/types'
 const MAX_BATCH_ADDRESSES = 200
 const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/
 
+type TabMode = 'single' | 'batch' | 'memo'
+
 interface SearchSectionProps {
+  activeTab: TabMode
+  onTabChange: (tab: TabMode) => void
   onQuery: (addresses: string[]) => Promise<void>
   onMemoQuery: (addresses: string[]) => Promise<void>
   onMemoRefresh: () => Promise<void>
@@ -23,6 +27,8 @@ interface SearchSectionProps {
 }
 
 export function SearchSection({
+  activeTab,
+  onTabChange,
   onQuery,
   onMemoQuery,
   onMemoRefresh,
@@ -33,7 +39,6 @@ export function SearchSection({
   proxyConfig,
   hasResults,
 }: SearchSectionProps) {
-  const [mode, setMode] = useState<'single' | 'batch' | 'memo'>('single')
   const [singleAddress, setSingleAddress] = useState('')
   const [batchAddresses, setBatchAddresses] = useState('')
   const [memoAddresses, setMemoAddresses] = useState('')
@@ -103,16 +108,14 @@ export function SearchSection({
   }
 
   const handleQuery = async () => {
-    let addresses: string[] = []
-
-    if (mode === 'single') {
+    if (activeTab === 'single') {
       const addr = singleAddress.trim()
       if (!validateAddress(addr)) {
         setSingleError('请输入合法的以太坊/Polygon 钱包地址（0x...）')
         return
       }
-      addresses = [addr]
-    } else if (mode === 'batch') {
+      await onQuery([addr])
+    } else if (activeTab === 'batch') {
       const parsed = parseBatchAddresses(batchAddresses)
       const invalid = parsed.filter((a) => !validateAddress(a))
       if (invalid.length > 0) {
@@ -127,9 +130,9 @@ export function SearchSection({
         setBatchError(`最多允许 ${MAX_BATCH_ADDRESSES} 个地址`)
         return
       }
-      addresses = parsed
+      await onQuery(parsed)
     } else {
-      // memo 模式
+      // memo
       const parsed = parseBatchAddresses(memoAddresses)
       const invalid = parsed.filter((a) => !validateAddress(a))
       if (invalid.length > 0) {
@@ -144,13 +147,7 @@ export function SearchSection({
         setMemoError(`最多允许 ${MAX_BATCH_ADDRESSES} 个地址`)
         return
       }
-      addresses = parsed
-    }
-
-    if (mode === 'memo') {
-      await onMemoQuery(addresses)
-    } else {
-      await onQuery(addresses)
+      await onMemoQuery(parsed)
     }
   }
 
@@ -158,15 +155,15 @@ export function SearchSection({
   const isMemoOverLimit = memoParsedCount > MAX_BATCH_ADDRESSES
   const isQueryDisabled =
     progress.isLoading ||
-    (mode === 'single' && (!singleAddress.trim() || !!singleError)) ||
-    (mode === 'batch' && (isBatchOverLimit || !!batchError || parsedCount === 0)) ||
-    (mode === 'memo' && (isMemoOverLimit || !!memoError || memoParsedCount === 0))
+    (activeTab === 'single' && (!singleAddress.trim() || !!singleError)) ||
+    (activeTab === 'batch' && (isBatchOverLimit || !!batchError || parsedCount === 0)) ||
+    (activeTab === 'memo' && (isMemoOverLimit || !!memoError || memoParsedCount === 0))
 
   return (
     <div className="mx-auto w-full max-w-4xl">
       <Tabs
-        value={mode}
-        onValueChange={(v) => setMode(v as 'single' | 'batch' | 'memo')}
+        value={activeTab}
+        onValueChange={(v) => onTabChange(v as TabMode)}
         className="w-full"
       >
         <div className="mb-5 flex justify-center">

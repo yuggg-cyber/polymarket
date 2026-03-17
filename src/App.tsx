@@ -25,6 +25,8 @@ const DEFAULT_PROXY: ProxyConfig = {
   apiBase: '',
 }
 
+type TabMode = 'single' | 'batch' | 'memo'
+
 function loadFromStorage<T>(key: string, fallback: T): T {
   try {
     const saved = localStorage.getItem(key)
@@ -51,30 +53,66 @@ function sleep(ms: number) {
 }
 
 function App() {
-  // 是否是记忆查询模式触发的当前查询
-  const isMemoQueryRef = useRef(false)
-
-  // 从 localStorage 加载记忆查询的缓存数据（如果有）
+  // 从 localStorage 加载记忆查询的缓存数据
   const cachedMemoResults = loadFromStorage<WalletData[]>(STORAGE_KEY_MEMO_RESULTS, [])
   const cachedMemoTime = loadFromStorage<string>(STORAGE_KEY_MEMO_TIME, '')
+  const hasCachedMemo = cachedMemoResults.length > 0
 
-  const [results, setResults] = useState<WalletData[]>(cachedMemoResults)
-  const [progress, setProgress] = useState<QueryProgress>({
-    total: cachedMemoResults.length > 0 ? cachedMemoResults.length : 0,
-    completed: cachedMemoResults.length > 0 ? cachedMemoResults.length : 0,
+  // ====== 当前激活的标签页 ======
+  const [activeTab, setActiveTab] = useState<TabMode>(hasCachedMemo ? 'memo' : 'single')
+
+  // ====== 三个标签页各自独立的结果 ======
+  const [singleResults, setSingleResults] = useState<WalletData[]>([])
+  const [batchResults, setBatchResults] = useState<WalletData[]>([])
+  const [memoResults, setMemoResults] = useState<WalletData[]>(cachedMemoResults)
+
+  // ====== 三个标签页各自独立的进度 ======
+  const [singleProgress, setSingleProgress] = useState<QueryProgress>({ total: 0, completed: 0, isLoading: false })
+  const [batchProgress, setBatchProgress] = useState<QueryProgress>({ total: 0, completed: 0, isLoading: false })
+  const [memoProgress, setMemoProgress] = useState<QueryProgress>({
+    total: hasCachedMemo ? cachedMemoResults.length : 0,
+    completed: hasCachedMemo ? cachedMemoResults.length : 0,
     isLoading: false,
   })
+
+  // ====== 根据当前标签页获取对应的 results / setResults / progress / setProgress ======
+  const getResultsForTab = (tab: TabMode) => {
+    if (tab === 'single') return singleResults
+    if (tab === 'batch') return batchResults
+    return memoResults
+  }
+  const getSetResultsForTab = (tab: TabMode) => {
+    if (tab === 'single') return setSingleResults
+    if (tab === 'batch') return setBatchResults
+    return setMemoResults
+  }
+  const getProgressForTab = (tab: TabMode) => {
+    if (tab === 'single') return singleProgress
+    if (tab === 'batch') return batchProgress
+    return memoProgress
+  }
+  const getSetProgressForTab = (tab: TabMode) => {
+    if (tab === 'single') return setSingleProgress
+    if (tab === 'batch') return setBatchProgress
+    return setMemoProgress
+  }
+
+  // 当前标签页的数据
+  const currentResults = getResultsForTab(activeTab)
+  const currentProgress = getProgressForTab(activeTab)
+
+  // 记忆查询保存时间
+  const [memoSavedTime, setMemoSavedTime] = useState<string>(cachedMemoTime)
+
+  // 用于标记当前正在执行的查询是否是记忆查询
+  const isMemoQueryRef = useRef(false)
+
   const [proxyConfig, setProxyConfig] = useState<ProxyConfig>(
     () => loadFromStorage(STORAGE_KEY_PROXY, DEFAULT_PROXY)
   )
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(
     () => loadFromStorage(STORAGE_KEY_ADDRESSES, [])
   )
-
-  // 记忆查询保存时间
-  const [memoSavedTime, setMemoSavedTime] = useState<string>(cachedMemoTime)
-  // 当前显示的结果是否来自记忆查询（缓存恢复或记忆查询触发）
-  const [isMemoResult, setIsMemoResult] = useState<boolean>(cachedMemoResults.length > 0)
 
   // 抽屉状态
   const [proxyDrawerOpen, setProxyDrawerOpen] = useState(false)
@@ -102,15 +140,19 @@ function App() {
     saveToStorage(STORAGE_KEY_ADDRESSES, addresses)
   }, [])
 
-  /** 批量查询多个地址（带延迟防限流） */
-  const handleQuery = useCallback(async (addresses: string[]) => {
+  /** 通用批量查询函数，操作指定标签页的 state */
+  const runQuery = useCallback(async (
+    addresses: string[],
+    targetTab: TabMode,
+    isMemo: boolean,
+  ) => {
+    const setResults = getSetResultsForTab(targetTab)
+    const setProgress = getSetProgressForTab(targetTab)
+
+    if (isMemo) isMemoQueryRef.current = true
+
     setResults([])
     setProgress({ total: addresses.length, completed: 0, isLoading: true })
-
-    // 如果不是记忆查询，标记当前结果不是记忆结果
-    if (!isMemoQueryRef.current) {
-      setIsMemoResult(false)
-    }
 
     // 初始化所有钱包为 loading 状态
     const initialResults: WalletData[] = addresses.map((addr) => ({
@@ -129,7 +171,6 @@ function App() {
     }))
     setResults(initialResults)
 
-    // 使用并发队列（代理模式并发 8，直连模式并发 5）
     const concurrency = proxyConfig.enabled ? 8 : 5
     const queue = createQueue(concurrency)
     let completed = 0
@@ -150,7 +191,6 @@ function App() {
         setResults((prev) =>
           prev.map((r) => (r.address === addr ? data : r))
         )
-        // 同步更新 finalResults 用于保存
         const i = finalResults.findIndex((r) => r.address === addr)
         if (i !== -1) finalResults[i] = data
         return data
@@ -160,71 +200,69 @@ function App() {
     await Promise.allSettled(tasks)
     setProgress((prev) => ({ ...prev, isLoading: false }))
 
-    // 如果是记忆查询，查询完成后自动保存结果
-    if (isMemoQueryRef.current) {
+    // 如果是记忆查询，查询完成后自动保存
+    if (isMemo) {
       const timeStr = new Date().toLocaleString('zh-CN')
       saveToStorage(STORAGE_KEY_MEMO_RESULTS, finalResults)
       saveToStorage(STORAGE_KEY_MEMO_TIME, timeStr)
       setMemoSavedTime(timeStr)
-      setIsMemoResult(true)
       isMemoQueryRef.current = false
     }
-  }, [proxyConfig])
+  }, [proxyConfig]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** 记忆查询：查询完自动保存 */
+  /** 单个查询 / 批量查询 */
+  const handleQuery = useCallback(async (addresses: string[]) => {
+    await runQuery(addresses, activeTab, false)
+  }, [runQuery, activeTab])
+
+  /** 记忆查询 */
   const handleMemoQuery = useCallback(async (addresses: string[]) => {
-    isMemoQueryRef.current = true
-    await handleQuery(addresses)
-  }, [handleQuery])
+    await runQuery(addresses, 'memo', true)
+  }, [runQuery])
 
   /** 刷新已保存的记忆查询数据 */
   const handleMemoRefresh = useCallback(async () => {
     const cached = loadFromStorage<WalletData[]>(STORAGE_KEY_MEMO_RESULTS, [])
     if (cached.length === 0) return
     const addresses = cached.map((r) => r.address)
-    isMemoQueryRef.current = true
-    await handleQuery(addresses)
-  }, [handleQuery])
+    await runQuery(addresses, 'memo', true)
+  }, [runQuery])
 
   /** 清除已保存的记忆查询数据 */
   const handleMemoClear = useCallback(() => {
     removeFromStorage(STORAGE_KEY_MEMO_RESULTS)
     removeFromStorage(STORAGE_KEY_MEMO_TIME)
     setMemoSavedTime('')
-    // 如果当前显示的就是记忆查询结果，清空页面
-    if (isMemoResult) {
-      setResults([])
-      setProgress({ total: 0, completed: 0, isLoading: false })
-      setIsMemoResult(false)
-    }
-  }, [isMemoResult])
+    setMemoResults([])
+    setMemoProgress({ total: 0, completed: 0, isLoading: false })
+  }, [])
 
-  /** 刷新单个地址的数据 — 保留旧数据显示，不设为 loading 隐藏 */
+  /** 刷新单个地址的数据 */
   const handleRefreshSingle = useCallback(async (address: string) => {
     const data = await fetchWalletData(
       address,
       proxyConfig.enabled ? proxyConfig : undefined
     )
-
+    const setResults = getSetResultsForTab(activeTab)
     setResults((prev) =>
       prev.map((r) => (r.address === address ? data : r))
     )
-  }, [proxyConfig])
+  }, [proxyConfig, activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** 刷新查询所有当前结果中的地址 */
+  /** 刷新全部 */
   const handleRefreshAll = useCallback(async () => {
-    if (results.length === 0) return
-    const addresses = results.map((r) => r.address)
-    // 如果当前显示的是记忆查询结果，刷新时也走记忆查询流程（自动保存）
-    if (isMemoResult) {
-      isMemoQueryRef.current = true
-    }
-    await handleQuery(addresses)
-  }, [results, handleQuery, isMemoResult])
+    if (currentResults.length === 0) return
+    const addresses = currentResults.map((r) => r.address)
+    const isMemo = activeTab === 'memo'
+    await runQuery(addresses, activeTab, isMemo)
+  }, [currentResults, activeTab, runQuery])
 
-  /** 重试所有失败和部分成功的地址 */
+  /** 重试失败 */
   const handleRetryFailed = useCallback(async () => {
-    const failedAddresses = results.filter((r) => r.status === 'error' || r.status === 'partial')
+    const setResults = getSetResultsForTab(activeTab)
+    const setProgress = getSetProgressForTab(activeTab)
+
+    const failedAddresses = currentResults.filter((r) => r.status === 'error' || r.status === 'partial')
     if (failedAddresses.length === 0) return
 
     setProgress((prev) => ({
@@ -234,8 +272,6 @@ function App() {
       isLoading: true,
     }))
 
-    // 将失败/部分成功的地址状态设为 loading（保留其他地址数据不变）
-    // 对于 partial 状态，保留旧数据显示，不设为 loading 隐藏
     setResults((prev) =>
       prev.map((r) =>
         r.status === 'error'
@@ -268,21 +304,20 @@ function App() {
 
     await Promise.allSettled(tasks)
     setProgress((prev) => ({ ...prev, isLoading: false }))
-  }, [results, proxyConfig])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentResults, proxyConfig, activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 当记忆查询结果中的单个地址刷新/重试完成后，也同步更新 localStorage
+  // 当记忆查询的结果中单个地址刷新/重试完成后，同步更新 localStorage
   useEffect(() => {
-    if (isMemoResult && !progress.isLoading && results.length > 0) {
-      // 只在非 loading 状态下保存（避免中间状态写入）
-      const hasLoading = results.some((r) => r.status === 'loading' || r.status === 'pending')
+    if (activeTab === 'memo' && !memoProgress.isLoading && memoResults.length > 0) {
+      const hasLoading = memoResults.some((r) => r.status === 'loading' || r.status === 'pending')
       if (!hasLoading) {
         const timeStr = new Date().toLocaleString('zh-CN')
-        saveToStorage(STORAGE_KEY_MEMO_RESULTS, results)
+        saveToStorage(STORAGE_KEY_MEMO_RESULTS, memoResults)
         saveToStorage(STORAGE_KEY_MEMO_TIME, timeStr)
         setMemoSavedTime(timeStr)
       }
     }
-  }, [results, isMemoResult, progress.isLoading])
+  }, [memoResults, memoProgress.isLoading, activeTab])
 
   return (
     <div className="min-h-screen bg-[#f8f9fa]">
@@ -349,28 +384,30 @@ function App() {
             setAddressDrawerOpen(false)
             return handleQuery(addresses)
           }}
-          isLoading={progress.isLoading}
+          isLoading={currentProgress.isLoading}
         />
       </Drawer>
 
       {/* 主内容区 */}
       <main className="max-w-[1400px] mx-auto px-6 py-8">
         <SearchSection
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
           onQuery={handleQuery}
           onMemoQuery={handleMemoQuery}
           onMemoRefresh={handleMemoRefresh}
           onMemoClear={handleMemoClear}
           memoSavedTime={memoSavedTime}
-          hasMemoData={!!loadFromStorage<WalletData[]>(STORAGE_KEY_MEMO_RESULTS, []).length}
-          progress={progress}
+          hasMemoData={memoResults.length > 0 || !!loadFromStorage<WalletData[]>(STORAGE_KEY_MEMO_RESULTS, []).length}
+          progress={currentProgress}
           proxyConfig={proxyConfig}
-          hasResults={results.length > 0}
+          hasResults={currentResults.length > 0}
         />
 
-        {results.length > 0 && (
+        {currentResults.length > 0 && (
           <div className="mt-8">
             {/* 记忆查询结果提示 */}
-            {isMemoResult && memoSavedTime && !progress.isLoading && (
+            {activeTab === 'memo' && memoSavedTime && !currentProgress.isLoading && (
               <div className="mb-4 flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
                 <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
@@ -379,9 +416,9 @@ function App() {
               </div>
             )}
             <ResultsTable
-              results={results}
+              results={currentResults}
               addressNotes={getNotes()}
-              isLoading={progress.isLoading}
+              isLoading={currentProgress.isLoading}
               onRefreshSingle={handleRefreshSingle}
               onRefreshAll={handleRefreshAll}
               onRetryFailed={handleRetryFailed}

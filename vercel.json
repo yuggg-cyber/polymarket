@@ -6,10 +6,14 @@
   "functions": {
     "api/query.js": {
       "maxDuration": 60
+    },
+    "api/resolve.js": {
+      "maxDuration": 30
     }
   },
   "rewrites": [
     { "source": "/api/query", "destination": "/api/query.js" },
+    { "source": "/api/resolve", "destination": "/api/resolve.js" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "headers": [

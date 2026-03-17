@@ -757,7 +757,12 @@ export function ResultsTable({
 
         {/* 序号 */}
         <td className="w-12 px-2 py-3 text-center text-sm text-gray-400 font-mono">
-          {rowIndex}
+          <span className="inline-flex items-center gap-0.5">
+            {wallet.positions.some(p => p.redeemable && p.currentValue > 0) && (
+              <span title="有可赎回的盈利仓位" className="cursor-help">🎁</span>
+            )}
+            {rowIndex}
+          </span>
         </td>
 
         {/* 地址 + 操作按钮 */}
@@ -772,14 +777,7 @@ export function ResultsTable({
             {wallet.status === 'partial' && (
               <span title={wallet.errorMessage || '部分数据获取失败'}><AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" /></span>
             )}
-            <span
-              className={`font-mono text-sm ${
-                wallet.positions.some(p => p.redeemable && p.currentValue > 0)
-                  ? 'text-emerald-600 font-semibold'
-                  : 'text-gray-800'
-              }`}
-              title={wallet.address}
-            >
+            <span className="font-mono text-sm text-gray-800" title={wallet.address}>
               {shortenAddress(wallet.address)}
             </span>
             <button

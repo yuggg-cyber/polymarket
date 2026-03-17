@@ -759,7 +759,7 @@ export function ResultsTable({
         <td className="w-12 px-2 py-3 text-center text-sm text-gray-400 font-mono">
           <span className="inline-flex items-center gap-0.5">
             {wallet.positions.some(p => p.redeemable && p.currentValue > 0) && (
-              <span title="有可赎回的盈利仓位" className="cursor-help">🎁</span>
+              <span title="有可赎回的盈利仓位">🎁</span>
             )}
             {rowIndex}
           </span>

@@ -337,12 +337,21 @@ function App() {
 
   /** 清除已保存的记忆查询数据 */
   const handleMemoClear = useCallback(() => {
+    // 清除记忆查询中地址的备注
+    setAddressNotes((prev) => {
+      const updated = { ...prev }
+      for (const r of memoResults) {
+        delete updated[r.address.toLowerCase()]
+      }
+      saveToStorage(STORAGE_KEY_NOTES, updated)
+      return updated
+    })
     removeFromStorage(STORAGE_KEY_MEMO_RESULTS)
     removeFromStorage(STORAGE_KEY_MEMO_TIME)
     setMemoSavedTime('')
     setMemoResults([])
     setMemoProgress({ total: 0, completed: 0, isLoading: false })
-  }, [])
+  }, [memoResults])
 
   /** 删除某个地址（从当前标签页的结果中移除） */
   const handleDeleteAddress = useCallback((address: string) => {

@@ -772,7 +772,14 @@ export function ResultsTable({
             {wallet.status === 'partial' && (
               <span title={wallet.errorMessage || '部分数据获取失败'}><AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" /></span>
             )}
-            <span className="font-mono text-sm text-gray-800" title={wallet.address}>
+            <span
+              className={`font-mono text-sm ${
+                wallet.positions.some(p => p.redeemable && p.currentValue > 0)
+                  ? 'text-emerald-600 font-semibold'
+                  : 'text-gray-800'
+              }`}
+              title={wallet.address}
+            >
               {shortenAddress(wallet.address)}
             </span>
             <button

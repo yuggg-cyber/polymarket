@@ -878,7 +878,7 @@ export function ResultsTable({
         </td>
 
         {/* 序号 */}
-        <td className="w-12 px-2 py-3 text-center text-sm text-gray-400 font-mono">
+        <td className="w-12 px-2 py-3.5 text-center text-base text-gray-400 tabular-nums">
           <div className="flex flex-col items-center justify-center">
             {wallet.positions.some(p => isActuallyRedeemable(p)) && (
               <span
@@ -894,7 +894,7 @@ export function ResultsTable({
         </td>
 
         {/* 地址 + 操作按钮 */}
-        <td className="px-3 py-3 min-w-[200px]">
+        <td className="px-3 py-3.5 min-w-[200px]">
           <div className="flex items-center gap-1.5">
             {wallet.status === 'loading' && (
               <Loader2 className="w-4 h-4 animate-spin text-blue-500 flex-shrink-0" />
@@ -905,7 +905,7 @@ export function ResultsTable({
             {wallet.status === 'partial' && (
               <span title={wallet.errorMessage || '部分数据获取失败'}><AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" /></span>
             )}
-            <span className="font-mono text-sm text-gray-800" title={wallet.address}>
+            <span className="font-mono text-base text-gray-800 font-medium" title={wallet.address}>
               {shortenAddress(wallet.address)}
             </span>
             <button

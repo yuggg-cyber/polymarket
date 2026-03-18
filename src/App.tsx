@@ -7,6 +7,7 @@ import { ResultsTable } from '@/components/ResultsTable'
 import { ProxySettings } from '@/components/ProxySettings'
 import { AddressExtractor } from '@/components/AddressExtractor'
 import { Drawer } from '@/components/ui/drawer'
+import { MarketBrowser } from '@/components/MarketBrowser'
 
 const STORAGE_KEY_PROXY = 'polymarket_proxy'
 const STORAGE_KEY_MEMO_RESULTS = 'polymarket_memo_results'
@@ -117,6 +118,9 @@ function App() {
   const [proxyConfig, setProxyConfig] = useState<ProxyConfig>(
     () => loadFromStorage(STORAGE_KEY_PROXY, DEFAULT_PROXY)
   )
+
+  // 页面模式：wallet=钱包分析, market=市场浏览
+  const [pageMode, setPageMode] = useState<'wallet' | 'market'>('wallet')
 
   // 抽屉状态
   const [proxyDrawerOpen, setProxyDrawerOpen] = useState(false)
@@ -517,6 +521,29 @@ function App() {
 
           {/* 右侧功能按钮 */}
           <div className="flex items-center gap-2">
+            {/* 页面切换按钮 */}
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setPageMode('wallet')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  pageMode === 'wallet'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                钱包分析
+              </button>
+              <button
+                onClick={() => setPageMode('market')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  pageMode === 'market'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                市场浏览
+              </button>
+            </div>
             <button
               onClick={() => setExtractDrawerOpen(true)}
               className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors"
@@ -558,37 +585,41 @@ function App() {
       </Drawer>
 
       {/* 主内容区 */}
-      <main className="max-w-[1800px] mx-auto px-6 py-8">
-        <SearchSection
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          onQuery={handleQuery}
-          onMemoQuery={handleMemoQuery}
-          progress={currentProgress}
-          proxyConfig={proxyConfig}
-          hasResults={currentResults.length > 0}
-          addressType={addressType}
-          onAddressTypeChange={setAddressType}
-        />
+      {pageMode === 'wallet' ? (
+        <main className="max-w-[1800px] mx-auto px-6 py-8">
+          <SearchSection
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onQuery={handleQuery}
+            onMemoQuery={handleMemoQuery}
+            progress={currentProgress}
+            proxyConfig={proxyConfig}
+            hasResults={currentResults.length > 0}
+            addressType={addressType}
+            onAddressTypeChange={setAddressType}
+          />
 
-        {currentResults.length > 0 && (
-          <div className="mt-8">
-            <ResultsTable
-              results={currentResults}
-              addressNotes={addressNotes}
-              onNoteChange={handleNoteChange}
-              isLoading={currentProgress.isLoading}
-              onRefreshSingle={handleRefreshSingle}
-              onRefreshAll={handleRefreshAll}
-              onRetryFailed={handleRetryFailed}
-              onMemoClear={handleMemoClear}
-              onDeleteAddress={handleDeleteAddress}
-              isMemoTab={activeTab === 'memo'}
-              memoSavedTime={memoSavedTime}
-            />
-          </div>
-        )}
-      </main>
+          {currentResults.length > 0 && (
+            <div className="mt-8">
+              <ResultsTable
+                results={currentResults}
+                addressNotes={addressNotes}
+                onNoteChange={handleNoteChange}
+                isLoading={currentProgress.isLoading}
+                onRefreshSingle={handleRefreshSingle}
+                onRefreshAll={handleRefreshAll}
+                onRetryFailed={handleRetryFailed}
+                onMemoClear={handleMemoClear}
+                onDeleteAddress={handleDeleteAddress}
+                isMemoTab={activeTab === 'memo'}
+                memoSavedTime={memoSavedTime}
+              />
+            </div>
+          )}
+        </main>
+      ) : (
+        <MarketBrowser />
+      )}
     </div>
   )
 }

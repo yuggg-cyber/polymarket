@@ -119,6 +119,28 @@ function isSportsEvent(tags: MarketTag[]): boolean {
   return tags.some((t) => SPORTS_SLUGS.has(t.slug?.toLowerCase() || ''))
 }
 
+/** 加密价格预测相关 tag slug */
+const CRYPTO_PRICE_SLUGS = new Set([
+  'crypto-prices', 'hit-price',
+])
+
+/** 加密价格预测关键词（市场标题匹配） */
+const CRYPTO_PRICE_KEYWORDS = [
+  '5-minute', '15-minute', '1-hour', '4-hour',
+  '5 minute', '15 minute', '1 hour', '4 hour',
+  'green candle', 'red candle',
+  'price above', 'price below', 'close above', 'close below',
+]
+
+function isCryptoPriceEvent(tags: MarketTag[], question: string): boolean {
+  // 通过 tag 判断
+  if (tags.some((t) => CRYPTO_PRICE_SLUGS.has(t.slug?.toLowerCase() || ''))) return true
+  // 通过市场标题关键词判断（短期价格涨跌预测）
+  const q = question.toLowerCase()
+  if (CRYPTO_PRICE_KEYWORDS.some((kw) => q.includes(kw))) return true
+  return false
+}
+
 /* ============ 主组件 ============ */
 
 export function MarketBrowser() {
@@ -131,6 +153,7 @@ export function MarketBrowser() {
   const [page, setPage] = useState(1)
   const [totalLoaded, setTotalLoaded] = useState(0)
   const [showSports, setShowSports] = useState(false)
+  const [showCrypto, setShowCrypto] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
 
   const PAGE_SIZE = 30
@@ -232,6 +255,8 @@ export function MarketBrowser() {
   const filtered = markets.filter((m) => {
     // 体育过滤
     if (!showSports && isSportsEvent(m.tags)) return false
+    // 加密价格预测过滤
+    if (!showCrypto && isCryptoPriceEvent(m.tags, m.question)) return false
     // 搜索过滤
     if (searchTerm) {
       const term = searchTerm.toLowerCase()
@@ -288,6 +313,7 @@ export function MarketBrowser() {
   /* ============ 统计卡片 ============ */
 
   const sportsCount = markets.filter((m) => isSportsEvent(m.tags)).length
+  const cryptoCount = markets.filter((m) => isCryptoPriceEvent(m.tags, m.question)).length
   const nonSportsCount = markets.length - sportsCount
 
   return (
@@ -315,7 +341,7 @@ export function MarketBrowser() {
         </div>
 
         {/* 统计卡片 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <div className="text-sm text-gray-500">总市场数</div>
             <div className="text-2xl font-bold text-gray-900 mt-1">{markets.length}</div>
@@ -327,6 +353,10 @@ export function MarketBrowser() {
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <div className="text-sm text-gray-500">体育赛事</div>
             <div className="text-2xl font-bold text-orange-500 mt-1">{sportsCount}</div>
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="text-sm text-gray-500">加密预测</div>
+            <div className="text-2xl font-bold text-purple-600 mt-1">{cryptoCount}</div>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <div className="text-sm text-gray-500">当前显示</div>
@@ -365,6 +395,18 @@ export function MarketBrowser() {
           >
             <Filter className="w-4 h-4" />
             {showSports ? '显示全部（含体育）' : '已排除体育赛事'}
+          </button>
+
+          <button
+            onClick={() => { setShowCrypto(!showCrypto); setPage(1) }}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
+              showCrypto
+                ? 'bg-purple-50 border-purple-200 text-purple-700'
+                : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+            {showCrypto ? '显示全部（含加密预测）' : '已排除加密预测'}
           </button>
         </div>
       </div>

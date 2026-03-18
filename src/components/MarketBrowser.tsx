@@ -8,7 +8,6 @@ import {
   TrendingUp,
   TrendingDown,
   Calendar,
-  BarChart3,
   Filter,
   X,
 } from 'lucide-react'
@@ -303,16 +302,7 @@ export function MarketBrowser() {
     <div className="max-w-[1800px] mx-auto px-6 py-8">
       {/* 标题和统计 */}
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-blue-500" />
-              本月到期预测市场
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              展示截至本月底结束的所有活跃预测市场及实时胜率
-            </p>
-          </div>
+        <div className="flex items-center justify-end mb-4">
           <button
             onClick={fetchMarkets}
             disabled={loading}

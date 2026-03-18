@@ -512,10 +512,12 @@ function App() {
         <div className="max-w-[1800px] mx-auto px-6 py-5 flex items-center gap-4">
           <div className="flex-1">
             <h1 className="text-xl font-bold text-gray-900">
-              Polymarket 钱包分析工具
+              {pageMode === 'wallet' ? 'Polymarket 钱包分析' : 'Polymarket 市场浏览'}
             </h1>
             <p className="text-sm text-gray-500">
-              批量查询和分析 Polymarket 钱包地址的交易数据
+              {pageMode === 'wallet'
+                ? '批量查询和分析 Polymarket 钱包地址的交易数据'
+                : '浏览本月到期的活跃预测市场及实时胜率'}
             </p>
           </div>
 

@@ -161,7 +161,7 @@ export function MarketBrowser() {
       while (true) {
         if (controller.signal.aborted) break
 
-        const url = `https://gamma-api.polymarket.com/events?active=true&closed=false&end_date_min=${now}&end_date_max=${endMax}&limit=${limit}&offset=${offset}`
+        const url = `/api/markets?end_date_min=${encodeURIComponent(now)}&end_date_max=${encodeURIComponent(endMax)}&limit=${limit}&offset=${offset}`
         const resp = await fetch(url, { signal: controller.signal })
         if (!resp.ok) throw new Error(`API 请求失败: ${resp.status}`)
 

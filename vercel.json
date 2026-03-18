@@ -6,10 +6,14 @@
   "functions": {
     "api/query.js": {
       "maxDuration": 60
+    },
+    "api/markets.js": {
+      "maxDuration": 30
     }
   },
   "rewrites": [
     { "source": "/api/query", "destination": "/api/query.js" },
+    { "source": "/api/markets", "destination": "/api/markets.js" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "headers": [
@@ -17,7 +21,7 @@
       "source": "/api/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
         { "key": "Access-Control-Allow-Headers", "value": "Content-Type" }
       ]
     }

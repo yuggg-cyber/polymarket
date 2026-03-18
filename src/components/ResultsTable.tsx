@@ -113,7 +113,14 @@ function loadColVisibility(): Set<SortField> {
     const raw = localStorage.getItem(COL_VISIBILITY_KEY)
     if (raw) {
       const arr = JSON.parse(raw) as string[]
-      return new Set(arr.filter(f => ALL_COL_FIELDS.includes(f as SortField)) as SortField[])
+      const saved = new Set(arr.filter(f => ALL_COL_FIELDS.includes(f as SortField)) as SortField[])
+      // 自动补充新增的列字段（旧配置中不存在的列默认显示）
+      for (const field of ALL_COL_FIELDS) {
+        if (!arr.includes(field)) {
+          saved.add(field)
+        }
+      }
+      return saved
     }
   } catch { /* ignore */ }
   return new Set(DEFAULT_VISIBLE)

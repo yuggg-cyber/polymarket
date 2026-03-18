@@ -50,10 +50,10 @@ function formatUSD(value: number): string {
 }
 
 function formatPnL(value: number): { text: string; className: string } {
-  if (value === 0) return { text: '$0', className: 'text-gray-600' }
+  if (value === 0) return { text: '$0', className: 'text-gray-500' }
   const formatted = formatUSD(Math.abs(value))
-  if (value > 0) return { text: '+' + formatted, className: 'text-emerald-600 font-semibold' }
-  return { text: '-' + formatted, className: 'text-red-500 font-semibold' }
+  if (value > 0) return { text: '+' + formatted, className: 'text-emerald-600' }
+  return { text: '-' + formatted, className: 'text-red-500' }
 }
 
 function formatExact(value: number): string {
@@ -804,13 +804,13 @@ export function ResultsTable({
     const failed = isFieldFailed(wallet.failedFields, ...failedFieldNames)
     if (failed) {
       return (
-        <td className="px-2 py-3 text-center text-[15px] text-orange-400 font-mono" title={`获取失败: ${failedFieldNames.join('、')}`}>
+        <td className="px-4 py-3 text-right text-sm text-orange-400" title={`获取失败: ${failedFieldNames.join('、')}`}>
           -
         </td>
       )
     }
     return (
-      <td className={`px-2 py-3 text-center font-mono text-[15px] ${extraClass}`}>
+      <td className={`px-4 py-3 text-right text-sm tabular-nums ${extraClass}`}>
         {value !== null ? formatter(value) : '-'}
       </td>
     )
@@ -825,14 +825,14 @@ export function ResultsTable({
     const failed = isFieldFailed(wallet.failedFields, ...failedFieldNames)
     if (failed) {
       return (
-        <td className="px-2 py-3 text-center text-[15px] text-orange-400 font-mono" title={`获取失败: ${failedFieldNames.join('、')}`}>
+        <td className="px-4 py-3 text-right text-sm text-orange-400" title={`获取失败: ${failedFieldNames.join('、')}`}>
           -
         </td>
       )
     }
     const pnlFmt = formatPnL(value)
     return (
-      <td className={`px-2 py-3 text-center font-mono text-[15px] ${pnlFmt.className}`}>{pnlFmt.text}</td>
+      <td className={`px-4 py-3 text-right text-sm tabular-nums ${pnlFmt.className}`}>{pnlFmt.text}</td>
     )
   }
 
@@ -1018,20 +1018,20 @@ export function ResultsTable({
         ) : (
           <>
             {/* 动态数据列 - 按新顺序：净资产-可用余额-持仓估值-持仓盈亏-总盈亏-池子数-交易额-活跃天-活跃月-最后活跃 */}
-            {visibleCols.has('netWorth') && renderCell(wallet, wallet.netWorth, ['可用余额', '持仓估值'], formatUSD, 'text-gray-800 font-semibold')}
-            {visibleCols.has('availableBalance') && renderCell(wallet, wallet.availableBalance, ['可用余额'], formatUSD, 'text-gray-700')}
-            {visibleCols.has('portfolioValue') && renderCell(wallet, wallet.portfolioValue, ['持仓估值'], formatUSD, 'text-gray-700')}
+            {visibleCols.has('netWorth') && renderCell(wallet, wallet.netWorth, ['可用余额', '持仓估值'], formatUSD, 'text-gray-900 font-medium')}
+            {visibleCols.has('availableBalance') && renderCell(wallet, wallet.availableBalance, ['可用余额'], formatUSD, 'text-gray-600')}
+            {visibleCols.has('portfolioValue') && renderCell(wallet, wallet.portfolioValue, ['持仓估值'], formatUSD, 'text-gray-600')}
             {visibleCols.has('holdingPnl') && renderPnlCell(wallet, wallet.holdingPnl, ['持仓列表'])}
             {visibleCols.has('profit') && renderPnlCell(wallet, wallet.profit, ['盈亏'])}
-            {visibleCols.has('marketsTraded') && renderCell(wallet, wallet.marketsTraded, ['池子数'], (v) => String(v), 'text-gray-700')}
-            {visibleCols.has('totalVolume') && renderCell(wallet, wallet.totalVolume, ['交易额'], formatUSD, 'text-gray-700')}
-            {visibleCols.has('activeDays') && renderCell(wallet, wallet.activeDays, ['活跃度'], (v) => String(v), 'text-gray-700')}
-            {visibleCols.has('activeMonths') && renderCell(wallet, wallet.activeMonths, ['活跃度'], (v) => String(v), 'text-gray-700')}
+            {visibleCols.has('marketsTraded') && renderCell(wallet, wallet.marketsTraded, ['池子数'], (v) => String(v), 'text-gray-600')}
+            {visibleCols.has('totalVolume') && renderCell(wallet, wallet.totalVolume, ['交易额'], formatUSD, 'text-gray-600')}
+            {visibleCols.has('activeDays') && renderCell(wallet, wallet.activeDays, ['活跃度'], (v) => String(v), 'text-gray-600')}
+            {visibleCols.has('activeMonths') && renderCell(wallet, wallet.activeMonths, ['活跃度'], (v) => String(v), 'text-gray-600')}
             {visibleCols.has('lastActiveDay') && (
               isFieldFailed(wallet.failedFields, '活跃度') ? (
-                <td className="px-2 py-3 text-center text-[15px] text-orange-400 font-mono" title="获取失败: 活跃度">-</td>
+                <td className="px-4 py-3 text-right text-sm text-orange-400" title="获取失败: 活跃度">-</td>
               ) : (
-                <td className="px-2 py-3 text-center text-[15px] text-gray-600">
+                <td className="px-4 py-3 text-right text-sm text-gray-600 tabular-nums">
                   {wallet.lastActiveDay !== null ? `${wallet.lastActiveDay}天前` : '-'}
                 </td>
               )
@@ -1265,21 +1265,21 @@ export function ResultsTable({
                 <th className="w-12 px-2 py-3 text-center whitespace-nowrap">
                   <button
                     onClick={() => handleSort('index')}
-                    className="inline-flex items-center justify-center hover:text-gray-900 transition-colors text-sm font-semibold text-gray-600"
+                    className="inline-flex items-center justify-center hover:text-gray-900 transition-colors text-xs font-semibold text-gray-500 uppercase tracking-wide"
                     title="按导入顺序排序"
                   >
                     #
                     <SortIcon active={sortField === 'index'} direction={sortDirection} />
                   </button>
                 </th>
-                <th className="px-3 py-3 text-left text-sm font-semibold text-gray-600 whitespace-nowrap">
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
                   地址
                 </th>
                 {filteredSortCols.map(({ field, label, tip }) => (
-                  <th key={field} className="px-2 py-3 text-center whitespace-nowrap">
+                  <th key={field} className="px-4 py-3 text-right whitespace-nowrap">
                     <button
                       onClick={() => handleSort(field)}
-                      className="inline-flex items-center justify-center hover:text-gray-900 transition-colors text-sm font-semibold text-gray-600"
+                      className="inline-flex items-center justify-end w-full hover:text-gray-900 transition-colors text-xs font-semibold text-gray-500 uppercase tracking-wide"
                       title={tip}
                     >
                       {label}
@@ -1288,7 +1288,7 @@ export function ResultsTable({
                   </th>
                 ))}
                 {/* 备注列表头 */}
-                <th className="px-3 py-3 text-left text-sm font-semibold text-gray-600 whitespace-nowrap min-w-[120px]">
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[120px]">
                   备注
                 </th>
               </tr>

@@ -21,6 +21,7 @@ import {
   Pencil,
   History,
   TrendingUp,
+  Gift,
 } from 'lucide-react'
 import type { WalletData, Position, ClosedPosition, SortField, SortDirection } from '@/types'
 import { exportToExcel, exportToCSV, exportToJSON } from '@/services/export'
@@ -776,12 +777,12 @@ export function ResultsTable({
 
         {/* 序号 */}
         <td className="w-12 px-2 py-3 text-center text-sm text-gray-400 font-mono">
-          <span className="inline-flex items-center gap-0.5">
+          <div className="flex flex-col items-center justify-center">
             {wallet.positions.some(p => isActuallyRedeemable(p)) && (
-              <span title="有可赎回的盈利仓位">🎁</span>
+              <span title="有可赎回的盈利仓位"><Gift className="w-3.5 h-3.5 text-gray-400 mb-0.5" /></span>
             )}
             {rowIndex}
-          </span>
+          </div>
         </td>
 
         {/* 地址 + 操作按钮 */}

@@ -442,9 +442,23 @@ async function fetchWalletDataDirect(address: string): Promise<WalletData> {
     endDate: p.endDate,
   }))
 
-  // 持仓盈亏：汇总所有当前持仓的浮动盈亏
+  // 持仓盈亏：只汇总"持有中"和"真正可赎回"仓位的浮动盈亏（排除已结算灰尘残留和可合并仓位）
   const holdingPnl = positionsResult.ok
-    ? positions.reduce((sum, p) => sum + p.cashPnl, 0)
+    ? positions.reduce((sum, p) => {
+        // 已结算（redeemable 但属于灰尘残留）：排除
+        if (p.redeemable) {
+          // 真正可赎回：currentValue > 0 且（绝对值 >= $0.1 或 占买入比例 >= 1%）
+          const isActuallyRedeemable = p.currentValue > 0 && (
+            p.currentValue >= 0.1 ||
+            (p.totalBought > 0 && p.currentValue / p.totalBought >= 0.01)
+          )
+          return isActuallyRedeemable ? sum + p.cashPnl : sum
+        }
+        // 可合并仓位：排除
+        if (p.mergeable) return sum
+        // 持有中：计入
+        return sum + p.cashPnl
+      }, 0)
     : 0
 
   // 判断状态：全部成功 = success，部分失败 = partial，全部失败 = error
@@ -538,9 +552,19 @@ async function fetchWalletDataViaProxy(
         status = 'partial'
       }
 
-      // 计算持仓盈亏（从服务端返回的 positions 中汇总）
+      // 计算持仓盈亏：只汇总"持有中"和"真正可赎回"仓位的浮动盈亏
       const holdingPnl = Array.isArray(data.positions)
-        ? data.positions.reduce((sum: number, p: Position) => sum + (p.cashPnl || 0), 0)
+        ? data.positions.reduce((sum: number, p: Position) => {
+            if (p.redeemable) {
+              const isActuallyRedeemable = p.currentValue > 0 && (
+                p.currentValue >= 0.1 ||
+                (p.totalBought > 0 && p.currentValue / p.totalBought >= 0.01)
+              )
+              return isActuallyRedeemable ? sum + (p.cashPnl || 0) : sum
+            }
+            if (p.mergeable) return sum
+            return sum + (p.cashPnl || 0)
+          }, 0)
         : 0
 
       return {

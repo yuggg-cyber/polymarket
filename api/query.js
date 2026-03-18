@@ -388,9 +388,19 @@ export default async function handler(req, res) {
 
     const netWorth = availableBalance + portfolioValue
 
-    // 持仓盈亏：汇总所有当前持仓的浮动盈亏
+    // 持仓盈亏：只汇总"持有中"和"真正可赎回"仓位的浮动盈亏（排除已结算灰尘残留和可合并仓位）
     const holdingPnl = positionsResult.ok
-      ? (openPositions || []).reduce((sum, p) => sum + (p.cashPnl || 0), 0)
+      ? (openPositions || []).reduce((sum, p) => {
+          if (p.redeemable) {
+            const isActuallyRedeemable = p.currentValue > 0 && (
+              p.currentValue >= 0.1 ||
+              (p.totalBought > 0 && p.currentValue / p.totalBought >= 0.01)
+            )
+            return isActuallyRedeemable ? sum + (p.cashPnl || 0) : sum
+          }
+          if (p.mergeable) return sum
+          return sum + (p.cashPnl || 0)
+        }, 0)
       : 0
 
     const positions = (openPositions || []).map((p) => ({

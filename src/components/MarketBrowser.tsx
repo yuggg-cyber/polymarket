@@ -400,12 +400,15 @@ export function MarketBrowser() {
 
       {/* 加载状态 */}
       {loading && (
-        <div className="flex items-center justify-center py-16">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-            <span className="text-sm text-gray-500">
-              正在加载市场数据... 已获取 {totalLoaded} 个市场
-            </span>
+        <div className="flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-3 h-3 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-3 h-3 rounded-full bg-pink-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+              <span className="w-3 h-3 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '450ms' }} />
+            </div>
+            <span className="text-sm text-gray-400">正在加载市场数据，请稍等...</span>
           </div>
         </div>
       )}

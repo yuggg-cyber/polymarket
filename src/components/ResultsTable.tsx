@@ -185,10 +185,18 @@ function EditableNoteCell({
 // 仓位详情行
 // ============================================================
 
+// 可赎回的最低价值阈值（低于此值视为灰尘残留，已实质结算）
+const REDEEMABLE_DUST_THRESHOLD = 0.01
+
+/** 判断仓位是否真正可赎回（排除灰尘残留） */
+function isActuallyRedeemable(pos: Position): boolean {
+  return pos.redeemable && pos.currentValue >= REDEEMABLE_DUST_THRESHOLD
+}
+
 /** 获取持仓状态的排序权重：持有中=0，可合并=1，可赎回(盈利)=2，已结算(亏损)=3 */
 function getPositionStatusWeight(pos: Position): number {
   if (pos.redeemable) {
-    return pos.currentValue > 0 ? 2 : 3
+    return isActuallyRedeemable(pos) ? 2 : 3
   }
   if (pos.mergeable) return 1
   return 0
@@ -464,7 +472,7 @@ function PositionDetailRows({ positions, walletAddress }: { positions: Position[
                     <td className="px-3 py-2.5 text-right text-sm font-mono text-gray-700">{formatUSD(pos.totalBought)}</td>
                     <td className="px-3 py-2.5 text-center">
                       {pos.redeemable ? (
-                        pos.currentValue > 0 ? (
+                        isActuallyRedeemable(pos) ? (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600 font-medium">可赎回</span>
                         ) : (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-400 font-medium">已结算</span>
@@ -758,7 +766,7 @@ export function ResultsTable({
         {/* 序号 */}
         <td className="w-12 px-2 py-3 text-center text-sm text-gray-400 font-mono">
           <span className="inline-flex items-center gap-0.5">
-            {wallet.positions.some(p => p.redeemable && p.currentValue > 0) && (
+            {wallet.positions.some(p => isActuallyRedeemable(p)) && (
               <span title="有可赎回的盈利仓位">🎁</span>
             )}
             {rowIndex}

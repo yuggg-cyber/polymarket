@@ -570,11 +570,11 @@ function SummaryCards({ results }: { results: WalletData[] }) {
   const holdingPnlFmt = formatPnL(totalHoldingPnl)
 
   const cards: { label: string; value: string; sub: string; cls: string; highlight?: boolean }[] = [
-    { label: '总盈亏',     value: pnl.text,                  sub: '历史累计',   cls: pnl.className },
-    { label: '持仓盈亏',   value: holdingPnlFmt.text,        sub: '当前持仓浮动', cls: holdingPnlFmt.className },
+    { label: '净资产总计', value: formatUSD(totalNetWorth),    sub: '可用 + 持仓', cls: 'text-gray-900' },
     { label: '可用余额',   value: formatUSD(totalAvailable),  sub: 'USDC',       cls: 'text-gray-900' },
     { label: '持仓估值',   value: formatUSD(totalHoldings),   sub: 'USD',        cls: 'text-gray-900' },
-    { label: '净资产总计', value: formatUSD(totalNetWorth),    sub: '可用 + 持仓', cls: 'text-gray-900' },
+    { label: '持仓盈亏',   value: holdingPnlFmt.text,        sub: '当前持仓浮动', cls: holdingPnlFmt.className },
+    { label: '总盈亏',     value: pnl.text,                  sub: '历史累计',   cls: pnl.className },
   ]
 
   // 有可赎回仓位时才显示第6张卡片

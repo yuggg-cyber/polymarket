@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState } from 'react'
 import {
   ExternalLink,
   Search,
@@ -14,13 +14,13 @@ import {
 
 /* ============ 类型定义 ============ */
 
-interface MarketTag {
+export interface MarketTag {
   id: string
   label: string
   slug: string
 }
 
-interface MarketItem {
+export interface MarketItem {
   id: string
   question: string
   slug: string
@@ -37,7 +37,7 @@ interface MarketItem {
   tags: MarketTag[]
 }
 
-interface EventData {
+export interface EventData {
   id: string
   title: string
   slug: string
@@ -139,98 +139,74 @@ function isCryptoPriceEvent(tags: MarketTag[], question: string): boolean {
   return false
 }
 
+/* ============ 解析函数（供外部使用） ============ */
+
+/** 获取本月最后一天 */
+function getMonthEnd() {
+  const now = new Date()
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+  return end.toISOString()
+}
+
+/** 解析 API 返回的事件数据为 MarketItem 列表 */
+export function parseEventsToMarkets(events: EventData[]): MarketItem[] {
+  const endMax = getMonthEnd()
+  const allMarkets: MarketItem[] = []
+
+  for (const event of events) {
+    const eventTags = (event.tags || []) as MarketTag[]
+
+    for (const m of event.markets || []) {
+      if (!m.active || m.closed) continue
+
+      const mEnd = new Date(m.endDate)
+      const monthEnd = new Date(endMax)
+      const nowDate = new Date()
+      if (mEnd > monthEnd || mEnd < nowDate) continue
+
+      const outcomes = parseOutcomes(m.outcomes)
+      const prices = parsePrices(m.outcomePrices)
+
+      allMarkets.push({
+        id: m.id,
+        question: m.question,
+        slug: m.slug,
+        endDate: m.endDate,
+        image: m.image || event.image,
+        outcomes,
+        outcomePrices: prices,
+        volume: parseFloat(m.volume) || 0,
+        volume24hr: m.volume24hr || 0,
+        liquidity: m.liquidityNum || m.liquidity || 0,
+        description: m.description || '',
+        eventTitle: event.title,
+        eventSlug: event.slug,
+        tags: eventTags,
+      })
+    }
+  }
+
+  return allMarkets
+}
+
 /* ============ 主组件 ============ */
 
-export function MarketBrowser() {
-  const [markets, setMarkets] = useState<MarketItem[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+interface MarketBrowserProps {
+  markets: MarketItem[]
+  loading: boolean
+  error: string | null
+  onRefresh: () => void
+}
+
+export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrowserProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<'endDate' | 'volume' | 'volume24hr' | 'yesPrice'>('volume')
   const [sortAsc, setSortAsc] = useState(false)
   const [page, setPage] = useState(1)
   const [showSports, setShowSports] = useState(false)
   const [showCrypto, setShowCrypto] = useState(false)
-  const abortRef = useRef<AbortController | null>(null)
 
   const PAGE_SIZE = 30
-
-  // 获取本月最后一天
-  const getMonthEnd = () => {
-    const now = new Date()
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
-    return end.toISOString()
-  }
-
-  const fetchMarkets = useCallback(async () => {
-    if (abortRef.current) abortRef.current.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
-
-    setLoading(true)
-    setError(null)
-
-    const endMax = getMonthEnd()
-    const now = new Date().toISOString()
-
-    try {
-      // 后端批量拉取所有分页数据，前端只需一次请求
-      const url = `/api/markets?end_date_min=${encodeURIComponent(now)}&end_date_max=${encodeURIComponent(endMax)}`
-      const resp = await fetch(url, { signal: controller.signal })
-      if (!resp.ok) throw new Error(`API 请求失败: ${resp.status}`)
-
-      const events: EventData[] = await resp.json()
-      const allMarkets: MarketItem[] = []
-
-      for (const event of events) {
-        const eventTags = (event.tags || []) as MarketTag[]
-
-        for (const m of event.markets || []) {
-          if (!m.active || m.closed) continue
-
-          const mEnd = new Date(m.endDate)
-          const monthEnd = new Date(endMax)
-          const nowDate = new Date()
-          if (mEnd > monthEnd || mEnd < nowDate) continue
-
-          const outcomes = parseOutcomes(m.outcomes)
-          const prices = parsePrices(m.outcomePrices)
-
-          allMarkets.push({
-            id: m.id,
-            question: m.question,
-            slug: m.slug,
-            endDate: m.endDate,
-            image: m.image || event.image,
-            outcomes,
-            outcomePrices: prices,
-            volume: parseFloat(m.volume) || 0,
-            volume24hr: m.volume24hr || 0,
-            liquidity: m.liquidityNum || m.liquidity || 0,
-            description: m.description || '',
-            eventTitle: event.title,
-            eventSlug: event.slug,
-            tags: eventTags,
-          })
-        }
-      }
-
-      setMarkets(allMarkets)
-      setPage(1)
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'AbortError') return
-      setError(err instanceof Error ? err.message : '加载失败')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchMarkets()
-    return () => {
-      if (abortRef.current) abortRef.current.abort()
-    }
-  }, [fetchMarkets])
 
   /* ============ 过滤和排序 ============ */
 
@@ -304,7 +280,7 @@ export function MarketBrowser() {
       <div className="mb-6">
         <div className="flex items-center justify-end mb-4">
           <button
-            onClick={fetchMarkets}
+            onClick={onRefresh}
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
           >

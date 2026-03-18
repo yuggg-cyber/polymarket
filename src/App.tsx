@@ -7,7 +7,8 @@ import { ResultsTable } from '@/components/ResultsTable'
 import { ProxySettings } from '@/components/ProxySettings'
 import { AddressExtractor } from '@/components/AddressExtractor'
 import { Drawer } from '@/components/ui/drawer'
-import { MarketBrowser } from '@/components/MarketBrowser'
+import { MarketBrowser, parseEventsToMarkets } from '@/components/MarketBrowser'
+import type { MarketItem, EventData } from '@/components/MarketBrowser'
 
 const STORAGE_KEY_PROXY = 'polymarket_proxy'
 const STORAGE_KEY_MEMO_RESULTS = 'polymarket_memo_results'
@@ -122,6 +123,51 @@ function App() {
   // 页面模式：wallet=钱包分析, market=市场浏览
   const [pageMode, setPageMode] = useState<'wallet' | 'market'>('wallet')
 
+  // ====== 市场浏览数据（提升到 App 层级，避免切换页面时重新加载） ======
+  const [marketData, setMarketData] = useState<MarketItem[]>([])
+  const [marketLoading, setMarketLoading] = useState(false)
+  const [marketError, setMarketError] = useState<string | null>(null)
+  const marketAbortRef = useRef<AbortController | null>(null)
+  const marketDataLoaded = useRef(false)
+
+  /** 获取市场数据 */
+  const fetchMarketData = useCallback(async () => {
+    if (marketAbortRef.current) marketAbortRef.current.abort()
+    const controller = new AbortController()
+    marketAbortRef.current = controller
+
+    setMarketLoading(true)
+    setMarketError(null)
+
+    const now = new Date()
+    const endMax = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
+    const nowISO = now.toISOString()
+
+    try {
+      const url = `/api/markets?end_date_min=${encodeURIComponent(nowISO)}&end_date_max=${encodeURIComponent(endMax)}`
+      const resp = await fetch(url, { signal: controller.signal })
+      if (!resp.ok) throw new Error(`API 请求失败: ${resp.status}`)
+
+      const events: EventData[] = await resp.json()
+      const allMarkets = parseEventsToMarkets(events)
+
+      setMarketData(allMarkets)
+      marketDataLoaded.current = true
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') return
+      setMarketError(err instanceof Error ? err.message : '加载失败')
+    } finally {
+      setMarketLoading(false)
+    }
+  }, [])
+
+  // 首次切换到市场浏览时自动加载数据（仅加载一次）
+  useEffect(() => {
+    if (pageMode === 'market' && !marketDataLoaded.current && !marketLoading) {
+      fetchMarketData()
+    }
+  }, [pageMode, fetchMarketData, marketLoading])
+
   // 抽屉状态
   const [proxyDrawerOpen, setProxyDrawerOpen] = useState(false)
   const [extractDrawerOpen, setExtractDrawerOpen] = useState(false)
@@ -162,7 +208,7 @@ function App() {
     let queryAddresses: { input: string; polymarket: string }[] = []
 
     if (addrType === 'account') {
-      // 先显示“正在解析账户地址”的状态
+      // 先显示"正在解析账户地址"的状态
       setResults([])
       setProgress({ total: addresses.length, completed: 0, isLoading: true, failedCount: 0, startTime: Date.now() })
 
@@ -511,10 +557,15 @@ function App() {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-[1800px] mx-auto px-6 py-5 flex items-center gap-4">
           <div className="flex-1">
-            <h1 className="text-xl font-bold text-gray-900">
+            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2.5">
+              <img
+                src="/logo.png"
+                alt="Logo"
+                className="h-7 w-auto"
+              />
               {pageMode === 'wallet' ? 'Polymarket 钱包分析' : 'Polymarket 市场浏览'}
             </h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 mt-0.5">
               {pageMode === 'wallet'
                 ? '批量查询和分析 Polymarket 钱包地址的交易数据'
                 : '浏览本月到期的活跃预测市场及实时胜率'}
@@ -620,7 +671,12 @@ function App() {
           )}
         </main>
       ) : (
-        <MarketBrowser />
+        <MarketBrowser
+          markets={marketData}
+          loading={marketLoading}
+          error={marketError}
+          onRefresh={fetchMarketData}
+        />
       )}
     </div>
   )

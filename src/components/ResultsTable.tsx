@@ -776,20 +776,18 @@ export function ResultsTable({
         </td>
 
         {/* 序号 */}
-        <td className="w-14 px-1 py-3 text-center text-sm text-gray-400 font-mono">
-          <div className="flex items-center justify-center gap-1">
-            {wallet.positions.some(p => isActuallyRedeemable(p)) ? (
+        <td className="w-12 px-2 py-3 text-center text-sm text-gray-400 font-mono">
+          <div className="flex flex-col items-center justify-center">
+            {wallet.positions.some(p => isActuallyRedeemable(p)) && (
               <span
                 title="有可赎回的盈利仓位"
-                className="inline-flex items-center justify-center w-4.5 h-4.5 rounded border border-amber-400 flex-shrink-0"
+                className="inline-flex items-center justify-center w-5 h-5 rounded border border-amber-400 mb-0.5"
                 style={{ boxShadow: '0 0 6px 1px rgba(251, 191, 36, 0.5)' }}
               >
                 <Gift className="w-3 h-3 text-amber-500" />
               </span>
-            ) : (
-              <span className="w-4.5 flex-shrink-0" />
             )}
-            <span>{rowIndex}</span>
+            {rowIndex}
           </div>
         </td>
 

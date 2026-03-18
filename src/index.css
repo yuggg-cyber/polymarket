@@ -77,6 +77,22 @@
   animation: slide-in-from-right 0.3s ease-out;
 }
 
+/* 骨架屏加载动画 */
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%) !important;
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
 /* 表格优化 */
 table {
   border-collapse: collapse;

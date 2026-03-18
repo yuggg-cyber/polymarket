@@ -360,17 +360,69 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
         </div>
       </div>
 
-      {/* 加载状态 */}
+      {/* 加载状态 —— 骨架屏 */}
       {loading && (
-        <div className="flex items-center justify-center py-20">
-          <div className="flex flex-col items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="w-3 h-3 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="w-3 h-3 rounded-full bg-pink-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-              <span className="w-3 h-3 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '450ms' }} />
+        <div className="space-y-4">
+          {/* 骨架屏：统计卡片 */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="h-3 w-16 bg-gray-200 rounded-md skeleton-shimmer" style={{ animationDelay: `${i * 0.1}s` }} />
+                <div className="h-7 w-12 bg-gray-200 rounded-md mt-3 skeleton-shimmer" style={{ animationDelay: `${i * 0.1 + 0.05}s` }} />
+              </div>
+            ))}
+          </div>
+
+          {/* 骨架屏：表格 */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            {/* 表头 */}
+            <div className="flex items-center gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200">
+              <div className="h-3 w-8 bg-gray-200 rounded skeleton-shimmer" />
+              <div className="h-3 flex-1 max-w-[260px] bg-gray-200 rounded skeleton-shimmer" style={{ animationDelay: '0.05s' }} />
+              <div className="h-3 w-16 bg-gray-200 rounded skeleton-shimmer" style={{ animationDelay: '0.1s' }} />
+              <div className="h-3 w-16 bg-gray-200 rounded skeleton-shimmer" style={{ animationDelay: '0.15s' }} />
+              <div className="h-3 w-20 bg-gray-200 rounded skeleton-shimmer" style={{ animationDelay: '0.2s' }} />
+              <div className="h-3 w-20 bg-gray-200 rounded skeleton-shimmer" style={{ animationDelay: '0.25s' }} />
+              <div className="h-3 w-16 bg-gray-200 rounded skeleton-shimmer" style={{ animationDelay: '0.3s' }} />
             </div>
-            <span className="text-sm text-gray-400">正在加载市场数据，请稍等...</span>
+            {/* 表格行 */}
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="flex items-center gap-4 px-4 py-4 border-b border-gray-100">
+                {/* 序号 */}
+                <div className="h-4 w-6 bg-gray-100 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08}s` }} />
+                {/* 图标+标题 */}
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex-shrink-0 skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.02}s` }} />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3.5 bg-gray-100 rounded w-3/4 skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.04}s` }} />
+                    <div className="h-2.5 bg-gray-50 rounded w-1/2 skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.06}s` }} />
+                  </div>
+                </div>
+                {/* YES 胜率 */}
+                <div className="flex flex-col items-center gap-1.5 min-w-[60px]">
+                  <div className="h-4 w-12 bg-gray-100 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.08}s` }} />
+                  <div className="h-1.5 w-14 bg-gray-100 rounded-full skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.1}s` }} />
+                </div>
+                {/* NO 胜率 */}
+                <div className="flex flex-col items-center gap-1.5 min-w-[60px]">
+                  <div className="h-4 w-12 bg-gray-100 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.12}s` }} />
+                  <div className="h-1.5 w-14 bg-gray-100 rounded-full skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.14}s` }} />
+                </div>
+                {/* 交易量 */}
+                <div className="h-4 w-16 bg-gray-100 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.16}s` }} />
+                {/* 24h交易量 */}
+                <div className="h-4 w-16 bg-gray-100 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.18}s` }} />
+                {/* 日期 */}
+                <div className="h-4 w-20 bg-gray-100 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.2}s` }} />
+                {/* 剩余天数 */}
+                <div className="h-5 w-10 bg-gray-100 rounded-full skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.22}s` }} />
+                {/* 标签 */}
+                <div className="flex gap-1">
+                  <div className="h-5 w-10 bg-gray-50 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.24}s` }} />
+                  <div className="h-5 w-8 bg-gray-50 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.26}s` }} />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

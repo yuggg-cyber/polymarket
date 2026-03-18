@@ -804,13 +804,13 @@ export function ResultsTable({
     const failed = isFieldFailed(wallet.failedFields, ...failedFieldNames)
     if (failed) {
       return (
-        <td className="px-2 py-3 text-center text-sm text-orange-400 font-mono" title={`获取失败: ${failedFieldNames.join('、')}`}>
+        <td className="px-2 py-3 text-center text-[15px] text-orange-400 font-mono" title={`获取失败: ${failedFieldNames.join('、')}`}>
           -
         </td>
       )
     }
     return (
-      <td className={`px-2 py-3 text-center font-mono text-sm ${extraClass}`}>
+      <td className={`px-2 py-3 text-center font-mono text-[15px] ${extraClass}`}>
         {value !== null ? formatter(value) : '-'}
       </td>
     )
@@ -825,14 +825,14 @@ export function ResultsTable({
     const failed = isFieldFailed(wallet.failedFields, ...failedFieldNames)
     if (failed) {
       return (
-        <td className="px-2 py-3 text-center text-sm text-orange-400 font-mono" title={`获取失败: ${failedFieldNames.join('、')}`}>
+        <td className="px-2 py-3 text-center text-[15px] text-orange-400 font-mono" title={`获取失败: ${failedFieldNames.join('、')}`}>
           -
         </td>
       )
     }
     const pnlFmt = formatPnL(value)
     return (
-      <td className={`px-2 py-3 text-center font-mono text-sm ${pnlFmt.className}`}>{pnlFmt.text}</td>
+      <td className={`px-2 py-3 text-center font-mono text-[15px] ${pnlFmt.className}`}>{pnlFmt.text}</td>
     )
   }
 
@@ -1029,9 +1029,9 @@ export function ResultsTable({
             {visibleCols.has('activeMonths') && renderCell(wallet, wallet.activeMonths, ['活跃度'], (v) => String(v), 'text-gray-700')}
             {visibleCols.has('lastActiveDay') && (
               isFieldFailed(wallet.failedFields, '活跃度') ? (
-                <td className="px-2 py-3 text-center text-sm text-orange-400 font-mono" title="获取失败: 活跃度">-</td>
+                <td className="px-2 py-3 text-center text-[15px] text-orange-400 font-mono" title="获取失败: 活跃度">-</td>
               ) : (
-                <td className="px-2 py-3 text-center text-sm text-gray-600">
+                <td className="px-2 py-3 text-center text-[15px] text-gray-600">
                   {wallet.lastActiveDay !== null ? `${wallet.lastActiveDay}天前` : '-'}
                 </td>
               )

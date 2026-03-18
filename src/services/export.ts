@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx'
 import type { WalletData } from '@/types'
 
 // ============================================================
@@ -89,11 +88,12 @@ function downloadBlob(blob: Blob, filename: string) {
 /**
  * 导出钱包数据为 Excel 文件
  */
-export function exportToExcel(
+export async function exportToExcel(
   results: WalletData[],
   addressNotes: Record<string, string>,
   indexMap: Map<string, number>,
 ) {
+  const XLSX = await import('xlsx')
   const wb = XLSX.utils.book_new()
 
   // Sheet 1: 钱包汇总
@@ -243,7 +243,7 @@ export function exportToJSON(
 // 列宽自适应
 // ============================================================
 
-function autoFitColumns(data: (string | number)[][]): XLSX.ColInfo[] {
+function autoFitColumns(data: (string | number)[][]): { wch: number }[] {
   const colWidths: number[] = []
 
   for (const row of data) {

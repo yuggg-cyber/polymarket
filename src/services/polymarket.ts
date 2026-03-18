@@ -133,7 +133,9 @@ async function fetchJSON<T>(url: string, retries = MAX_RETRIES): Promise<T> {
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error))
       if (i < retries) {
-        await new Promise((r) => setTimeout(r, RETRY_BASE_MS * (i + 1)))
+        // 指数退避：500ms, 1000ms, 2000ms
+        const delay = RETRY_BASE_MS * Math.pow(2, i)
+        await new Promise((r) => setTimeout(r, delay))
       }
     }
   }

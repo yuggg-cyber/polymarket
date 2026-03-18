@@ -22,6 +22,7 @@ import {
   History,
   TrendingUp,
   Gift,
+  Settings2,
 } from 'lucide-react'
 import type { WalletData, Position, ClosedPosition, SortField, SortDirection } from '@/types'
 import { exportToExcel, exportToCSV, exportToJSON } from '@/services/export'
@@ -101,8 +102,25 @@ const SORT_COLS: { field: SortField; label: string; tip: string }[] = [
   { field: 'activeMonths',     label: '活跃月',   tip: '历史累计活跃月数' },
 ]
 
-// checkbox + 展开 + 序号 + 地址 + 9 数据列 + 备注列 = 14
-const TOTAL_COLS = 4 + SORT_COLS.length + 1
+// 列可见性存储
+const COL_VISIBILITY_KEY = 'polymarket_col_visibility'
+const ALL_COL_FIELDS = SORT_COLS.map(c => c.field)
+const DEFAULT_VISIBLE = new Set<SortField>(ALL_COL_FIELDS)
+
+function loadColVisibility(): Set<SortField> {
+  try {
+    const raw = localStorage.getItem(COL_VISIBILITY_KEY)
+    if (raw) {
+      const arr = JSON.parse(raw) as string[]
+      return new Set(arr.filter(f => ALL_COL_FIELDS.includes(f as SortField)) as SortField[])
+    }
+  } catch { /* ignore */ }
+  return new Set(DEFAULT_VISIBLE)
+}
+
+function saveColVisibility(visible: Set<SortField>) {
+  localStorage.setItem(COL_VISIBILITY_KEY, JSON.stringify([...visible]))
+}
 
 // ============================================================
 // 可编辑备注单元格
@@ -215,11 +233,11 @@ function getPositionStatusWeight(pos: Position): number {
 }
 
 /** 历史战绩行 */
-function ClosedPositionRows({ closedPositions, isLoading }: { closedPositions: ClosedPosition[]; isLoading: boolean }) {
+function ClosedPositionRows({ closedPositions, isLoading, totalCols }: { closedPositions: ClosedPosition[]; isLoading: boolean; totalCols: number }) {
   if (isLoading) {
     return (
       <tr>
-        <td colSpan={TOTAL_COLS} className="text-center text-gray-400 py-6 bg-gray-50/80">
+        <td colSpan={totalCols} className="text-center text-gray-400 py-6 bg-gray-50/80">
           <span className="inline-flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" /> 加载历史战绩中...
           </span>
@@ -231,7 +249,7 @@ function ClosedPositionRows({ closedPositions, isLoading }: { closedPositions: C
   if (closedPositions.length === 0) {
     return (
       <tr>
-        <td colSpan={TOTAL_COLS} className="text-center text-gray-400 py-6 bg-gray-50/80">
+        <td colSpan={totalCols} className="text-center text-gray-400 py-6 bg-gray-50/80">
           暂无历史战绩
         </td>
       </tr>
@@ -322,7 +340,7 @@ function ClosedPositionRows({ closedPositions, isLoading }: { closedPositions: C
 }
 
 /** 带 Tab 切换的仓位详情行 */
-function PositionDetailRows({ positions, walletAddress }: { positions: Position[]; walletAddress: string }) {
+function PositionDetailRows({ positions, walletAddress, totalCols }: { positions: Position[]; walletAddress: string; totalCols: number }) {
   const [activeTab, setActiveTab] = useState<'current' | 'history'>('current')
   const [closedPositions, setClosedPositions] = useState<ClosedPosition[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -368,7 +386,7 @@ function PositionDetailRows({ positions, walletAddress }: { positions: Position[
     <>
       {/* Tab 切换行 */}
       <tr className="bg-gray-50 border-b border-gray-200">
-        <td colSpan={TOTAL_COLS} className="px-4 py-2">
+        <td colSpan={totalCols} className="px-4 py-2">
           <div className="flex items-center gap-4">
             <button
               onClick={() => handleTabChange('current')}
@@ -419,7 +437,7 @@ function PositionDetailRows({ positions, walletAddress }: { positions: Position[
         <>
           {positions.length === 0 ? (
             <tr>
-              <td colSpan={TOTAL_COLS} className="text-center text-gray-400 py-6 bg-gray-50/80">
+              <td colSpan={totalCols} className="text-center text-gray-400 py-6 bg-gray-50/80">
                 暂无持仓
               </td>
             </tr>
@@ -508,7 +526,7 @@ function PositionDetailRows({ positions, walletAddress }: { positions: Position[
 
       {/* 历史战绩内容 */}
       {activeTab === 'history' && (
-        <ClosedPositionRows closedPositions={closedPositions} isLoading={historyLoading} />
+        <ClosedPositionRows closedPositions={closedPositions} isLoading={historyLoading} totalCols={totalCols} />
       )}
     </>
   )
@@ -527,22 +545,52 @@ function SummaryCards({ results }: { results: WalletData[] }) {
   const totalHoldings  = ok.reduce((s, r) => s + r.portfolioValue, 0)
   const totalNetWorth  = ok.reduce((s, r) => s + r.netWorth, 0)
 
+  // 计算可赎回总额
+  let totalRedeemable = 0
+  let redeemableCount = 0
+  for (const w of ok) {
+    for (const p of w.positions) {
+      if (isActuallyRedeemable(p)) {
+        totalRedeemable += p.currentValue
+        redeemableCount++
+      }
+    }
+  }
+
   const pnl = formatPnL(totalProfit)
 
-  const cards = [
+  const cards: { label: string; value: string; sub: string; cls: string; highlight?: boolean }[] = [
     { label: '总盈亏',     value: pnl.text,                  sub: '历史累计',   cls: pnl.className },
     { label: '可用余额',   value: formatUSD(totalAvailable),  sub: 'USDC',       cls: 'text-gray-900' },
     { label: '持仓估值',   value: formatUSD(totalHoldings),   sub: 'USD',        cls: 'text-gray-900' },
     { label: '净资产总计', value: formatUSD(totalNetWorth),    sub: '可用 + 持仓', cls: 'text-gray-900' },
   ]
 
+  // 有可赎回仓位时才显示第5张卡片
+  if (redeemableCount > 0) {
+    cards.push({
+      label: '可赎回总额',
+      value: formatUSD(totalRedeemable),
+      sub: `${redeemableCount} 个仓位可赎回`,
+      cls: 'text-amber-600',
+      highlight: true,
+    })
+  }
+
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div className={`grid grid-cols-2 gap-4 mb-6 ${cards.length > 4 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
       {cards.map((c) => (
-        <div key={c.label} className="bg-white rounded-xl border border-gray-200 px-5 py-4">
-          <div className="text-sm text-gray-500 mb-1">{c.label}</div>
+        <div
+          key={c.label}
+          className={`bg-white rounded-xl border px-5 py-4 ${
+            c.highlight
+              ? 'border-amber-300 bg-amber-50/50'
+              : 'border-gray-200'
+          }`}
+        >
+          <div className={`text-sm mb-1 ${c.highlight ? 'text-amber-600 font-medium' : 'text-gray-500'}`}>{c.label}</div>
           <div className={`text-2xl font-bold tracking-tight ${c.cls}`}>{c.value}</div>
-          <div className="text-xs text-gray-400 mt-1">{c.sub}</div>
+          <div className={`text-xs mt-1 ${c.highlight ? 'text-amber-500' : 'text-gray-400'}`}>{c.sub}</div>
         </div>
       ))}
     </div>
@@ -589,6 +637,30 @@ export function ResultsTable({
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [visibleCols, setVisibleCols] = useState<Set<SortField>>(loadColVisibility)
+  const [colMenuOpen, setColMenuOpen] = useState(false)
+
+  const toggleColVisibility = (field: SortField) => {
+    setVisibleCols(prev => {
+      const next = new Set(prev)
+      if (next.has(field)) {
+        if (next.size <= 1) return prev // 至少保留 1 列
+        next.delete(field)
+      } else {
+        next.add(field)
+      }
+      saveColVisibility(next)
+      return next
+    })
+  }
+
+  const resetColVisibility = () => {
+    setVisibleCols(new Set(DEFAULT_VISIBLE))
+    saveColVisibility(new Set(DEFAULT_VISIBLE))
+  }
+
+  const filteredSortCols = SORT_COLS.filter(c => visibleCols.has(c.field))
+  const TOTAL_COLS = 4 + filteredSortCols.length + 1
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -814,11 +886,11 @@ export function ResultsTable({
               <Copy className={`w-3.5 h-3.5 ${copiedAddr === wallet.address ? 'text-emerald-500' : 'text-gray-400'}`} />
             </button>
             <a
-              href={`https://polygonscan.com/address/${wallet.address}`}
+              href={`https://polymarket.com/profile/${wallet.address}`}
               target="_blank"
               rel="noopener noreferrer"
               className="p-0.5 rounded hover:bg-gray-200 transition-colors"
-              title="在 PolygonScan 查看"
+              title="在 Polymarket 查看个人主页"
             >
               <ExternalLink className="w-3.5 h-3.5 text-gray-400" />
             </a>
@@ -897,7 +969,7 @@ export function ResultsTable({
         {/* 数据列 */}
         {wallet.status === 'loading' ? (
           <>
-            <td colSpan={9} className="px-3 py-3 text-center text-gray-400">
+            <td colSpan={filteredSortCols.length} className="px-3 py-3 text-center text-gray-400">
               <span className="inline-flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" /> 加载中...
               </span>
@@ -906,7 +978,7 @@ export function ResultsTable({
           </>
         ) : wallet.status === 'error' ? (
           <>
-            <td colSpan={9} className="px-3 py-3 text-center text-red-500">
+            <td colSpan={filteredSortCols.length} className="px-3 py-3 text-center text-red-500">
               <span className="inline-flex items-center gap-2">
                 <AlertCircle className="w-4 h-4" /> {wallet.errorMessage || '查询失败'}
               </span>
@@ -915,34 +987,30 @@ export function ResultsTable({
           </>
         ) : (
           <>
-            {/* 净资产 */}
-            {renderCell(wallet, wallet.netWorth, ['可用余额', '持仓估值'], formatUSD, 'text-gray-800 font-semibold')}
-            {/* 盈亏 */}
-            {isFieldFailed(wallet.failedFields, '盈亏') ? (
-              <td className="px-3 py-3 text-center text-sm text-orange-400 font-mono" title="获取失败: 盈亏">-</td>
-            ) : (
-              <td className={`px-3 py-3 text-center font-mono text-sm ${pnl.className}`}>{pnl.text}</td>
+            {/* 动态数据列 */}
+            {visibleCols.has('netWorth') && renderCell(wallet, wallet.netWorth, ['可用余额', '持仓估值'], formatUSD, 'text-gray-800 font-semibold')}
+            {visibleCols.has('profit') && (
+              isFieldFailed(wallet.failedFields, '盈亏') ? (
+                <td className="px-3 py-3 text-center text-sm text-orange-400 font-mono" title="获取失败: 盈亏">-</td>
+              ) : (
+                <td className={`px-3 py-3 text-center font-mono text-sm ${pnl.className}`}>{pnl.text}</td>
+              )
             )}
-            {/* 可用余额 */}
-            {renderCell(wallet, wallet.availableBalance, ['可用余额'], formatUSD, 'text-gray-700')}
-            {/* 持仓估值 */}
-            {renderCell(wallet, wallet.portfolioValue, ['持仓估值'], formatUSD, 'text-gray-700')}
-            {/* 交易额 */}
-            {renderCell(wallet, wallet.totalVolume, ['交易额'], formatUSD, 'text-gray-700')}
-            {/* 池子数 */}
-            {renderCell(wallet, wallet.marketsTraded, ['池子数'], (v) => String(v), 'text-gray-700')}
-            {/* 最后活跃 */}
-            {isFieldFailed(wallet.failedFields, '活跃度') ? (
-              <td className="px-3 py-3 text-center text-sm text-orange-400 font-mono" title="获取失败: 活跃度">-</td>
-            ) : (
-              <td className="px-3 py-3 text-center text-sm text-gray-600">
-                {wallet.lastActiveDay !== null ? `${wallet.lastActiveDay}天前` : '-'}
-              </td>
+            {visibleCols.has('availableBalance') && renderCell(wallet, wallet.availableBalance, ['可用余额'], formatUSD, 'text-gray-700')}
+            {visibleCols.has('portfolioValue') && renderCell(wallet, wallet.portfolioValue, ['持仓估值'], formatUSD, 'text-gray-700')}
+            {visibleCols.has('totalVolume') && renderCell(wallet, wallet.totalVolume, ['交易额'], formatUSD, 'text-gray-700')}
+            {visibleCols.has('marketsTraded') && renderCell(wallet, wallet.marketsTraded, ['池子数'], (v) => String(v), 'text-gray-700')}
+            {visibleCols.has('lastActiveDay') && (
+              isFieldFailed(wallet.failedFields, '活跃度') ? (
+                <td className="px-3 py-3 text-center text-sm text-orange-400 font-mono" title="获取失败: 活跃度">-</td>
+              ) : (
+                <td className="px-3 py-3 text-center text-sm text-gray-600">
+                  {wallet.lastActiveDay !== null ? `${wallet.lastActiveDay}天前` : '-'}
+                </td>
+              )
             )}
-            {/* 活跃天 */}
-            {renderCell(wallet, wallet.activeDays, ['活跃度'], (v) => String(v), 'text-gray-700')}
-            {/* 活跃月 */}
-            {renderCell(wallet, wallet.activeMonths, ['活跃度'], (v) => String(v), 'text-gray-700')}
+            {visibleCols.has('activeDays') && renderCell(wallet, wallet.activeDays, ['活跃度'], (v) => String(v), 'text-gray-700')}
+            {visibleCols.has('activeMonths') && renderCell(wallet, wallet.activeMonths, ['活跃度'], (v) => String(v), 'text-gray-700')}
             {/* 备注 */}
             <EditableNoteCell
               address={wallet.address}
@@ -957,7 +1025,7 @@ export function ResultsTable({
     // 展开的仓位行
     if (isExpanded && isDataReady) {
       rows.push(
-        <PositionDetailRows key={wallet.address + '-pos'} positions={wallet.positions} walletAddress={wallet.address} />
+        <PositionDetailRows key={wallet.address + '-pos'} positions={wallet.positions} walletAddress={wallet.address} totalCols={TOTAL_COLS} />
       )
     }
   }
@@ -1088,6 +1156,51 @@ export function ResultsTable({
               )}
             </div>
           )}
+
+          {/* 列设置按钮 */}
+          <div className="relative">
+            <button
+              onClick={() => setColMenuOpen(!colMenuOpen)}
+              onBlur={() => setTimeout(() => setColMenuOpen(false), 200)}
+              className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors shadow-sm ${
+                visibleCols.size < ALL_COL_FIELDS.length
+                  ? 'text-blue-600 bg-blue-50 border-blue-300 hover:bg-blue-100'
+                  : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+              }`}
+              title="设置显示列"
+            >
+              <Settings2 className="w-4 h-4" />
+              列
+            </button>
+            {colMenuOpen && (
+              <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
+                {SORT_COLS.map(({ field, label }) => (
+                  <label
+                    key={field}
+                    className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors"
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={visibleCols.has(field)}
+                      onChange={() => toggleColVisibility(field)}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    {label}
+                  </label>
+                ))}
+                <div className="border-t border-gray-100 mt-1 pt-1">
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={resetColVisibility}
+                    className="w-full text-left px-4 py-2 text-xs text-gray-500 hover:text-blue-600 hover:bg-gray-50 transition-colors"
+                  >
+                    重置为默认
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1137,7 +1250,7 @@ export function ResultsTable({
                 <th className="px-3 py-3 text-left text-sm font-semibold text-gray-600 whitespace-nowrap">
                   地址
                 </th>
-                {SORT_COLS.map(({ field, label, tip }) => (
+                {filteredSortCols.map(({ field, label, tip }) => (
                   <th key={field} className="px-3 py-3 text-center whitespace-nowrap">
                     <button
                       onClick={() => handleSort(field)}

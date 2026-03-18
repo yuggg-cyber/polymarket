@@ -276,7 +276,8 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
 
   return (
     <div className="max-w-[1800px] mx-auto px-6 py-8">
-      {/* 标题和统计 */}
+      {/* 标题和统计 - 加载时隐藏 */}
+      {!loading && (
       <div className="mb-6">
         <div className="flex items-center justify-end mb-4">
           <button
@@ -290,75 +291,78 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
         </div>
 
         {/* 统计卡片 */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-sm text-gray-500">总市场数</div>
-            <div className="text-2xl font-bold text-gray-900 mt-1">{markets.length}</div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500">总市场数</div>
+              <div className="text-2xl font-bold text-gray-900 mt-1">{markets.length}</div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500">非体育市场</div>
+              <div className="text-2xl font-bold text-blue-600 mt-1">{nonSportsCount}</div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500">体育赛事</div>
+              <div className="text-2xl font-bold text-orange-500 mt-1">{sportsCount}</div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500">加密预测</div>
+              <div className="text-2xl font-bold text-purple-600 mt-1">{cryptoCount}</div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500">当前显示</div>
+              <div className="text-2xl font-bold text-emerald-600 mt-1">{filtered.length}</div>
+            </div>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-sm text-gray-500">非体育市场</div>
-            <div className="text-2xl font-bold text-blue-600 mt-1">{nonSportsCount}</div>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-sm text-gray-500">体育赛事</div>
-            <div className="text-2xl font-bold text-orange-500 mt-1">{sportsCount}</div>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-sm text-gray-500">加密预测</div>
-            <div className="text-2xl font-bold text-purple-600 mt-1">{cryptoCount}</div>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-sm text-gray-500">当前显示</div>
-            <div className="text-2xl font-bold text-emerald-600 mt-1">{filtered.length}</div>
-          </div>
-        </div>
 
         {/* 搜索和过滤 */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[240px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setPage(1) }}
-              placeholder="搜索市场名称、事件、标签..."
-              className="w-full pl-10 pr-10 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => { setSearchTerm(''); setPage(1) }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+        
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setPage(1) }}
+                placeholder="搜索市场名称、事件、标签..."
+                className="w-full pl-10 pr-10 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => { setSearchTerm(''); setPage(1) }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
 
-          <button
-            onClick={() => { setShowSports(!showSports); setPage(1) }}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
-              showSports
-                ? 'bg-orange-50 border-orange-200 text-orange-700'
-                : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <Filter className="w-4 h-4" />
-            {showSports ? '显示全部（含体育）' : '已排除体育赛事'}
-          </button>
+            <button
+              onClick={() => { setShowSports(!showSports); setPage(1) }}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
+                showSports
+                  ? 'bg-orange-50 border-orange-200 text-orange-700'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Filter className="w-4 h-4" />
+              {showSports ? '显示全部（含体育）' : '已排除体育赛事'}
+            </button>
 
-          <button
-            onClick={() => { setShowCrypto(!showCrypto); setPage(1) }}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
-              showCrypto
-                ? 'bg-purple-50 border-purple-200 text-purple-700'
-                : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <Filter className="w-4 h-4" />
-            {showCrypto ? '显示全部（含加密预测）' : '已排除加密预测'}
+            <button
+              onClick={() => { setShowCrypto(!showCrypto); setPage(1) }}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
+                showCrypto
+                  ? 'bg-purple-50 border-purple-200 text-purple-700'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Filter className="w-4 h-4" />
+              {showCrypto ? '显示全部（含加密预测）' : '已排除加密预测'}
           </button>
         </div>
+        
       </div>
+      )}
 
       {/* 加载状态 —— 骨架屏 */}
       {loading && (
@@ -367,68 +371,74 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {[...Array(5)].map((_, i) => (
               <div key={i} className="bg-white rounded-lg border border-gray-200 p-4">
-                <div className="h-3 w-16 bg-gray-200 rounded-md skeleton-shimmer" style={{ animationDelay: `${i * 0.1}s` }} />
-                <div className="h-7 w-12 bg-gray-200 rounded-md mt-3 skeleton-shimmer" style={{ animationDelay: `${i * 0.1 + 0.05}s` }} />
+                <div className="h-3 w-16 rounded-md" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: `skeleton-shimmer 1.5s ease-in-out infinite ${i * 0.1}s` }} />
+                <div className="h-7 w-12 rounded-md mt-3" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: `skeleton-shimmer 1.5s ease-in-out infinite ${i * 0.1 + 0.05}s` }} />
               </div>
             ))}
+          </div>
+
+          {/* 骨架屏：搜索栏占位 */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex-1 min-w-[240px] h-[42px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0s' }} />
+            <div className="h-[42px] w-[160px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.1s' }} />
+            <div className="h-[42px] w-[160px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.2s' }} />
           </div>
 
           {/* 骨架屏：表格 */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             {/* 表头 */}
-            <div className="flex items-center gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200">
-              <div className="h-3 w-8 bg-gray-200 rounded skeleton-shimmer" />
-              <div className="h-3 flex-1 max-w-[260px] bg-gray-200 rounded skeleton-shimmer" style={{ animationDelay: '0.05s' }} />
-              <div className="h-3 w-16 bg-gray-200 rounded skeleton-shimmer" style={{ animationDelay: '0.1s' }} />
-              <div className="h-3 w-16 bg-gray-200 rounded skeleton-shimmer" style={{ animationDelay: '0.15s' }} />
-              <div className="h-3 w-20 bg-gray-200 rounded skeleton-shimmer" style={{ animationDelay: '0.2s' }} />
-              <div className="h-3 w-20 bg-gray-200 rounded skeleton-shimmer" style={{ animationDelay: '0.25s' }} />
-              <div className="h-3 w-16 bg-gray-200 rounded skeleton-shimmer" style={{ animationDelay: '0.3s' }} />
+            <div className="flex items-center gap-4 px-4 py-3 border-b border-gray-100">
+              <div className="h-3 w-8 rounded" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0s' }} />
+              <div className="h-3 flex-1 max-w-[260px] rounded" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.05s' }} />
+              <div className="h-3 w-16 rounded" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.1s' }} />
+              <div className="h-3 w-16 rounded" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.15s' }} />
+              <div className="h-3 w-20 rounded" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.2s' }} />
+              <div className="h-3 w-20 rounded" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.25s' }} />
+              <div className="h-3 w-16 rounded" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.3s' }} />
             </div>
             {/* 表格行 */}
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-4 py-4 border-b border-gray-100">
-                {/* 序号 */}
-                <div className="h-4 w-6 bg-gray-100 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08}s` }} />
-                {/* 图标+标题 */}
-                <div className="flex items-center gap-3 flex-1">
-                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex-shrink-0 skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.02}s` }} />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-3.5 bg-gray-100 rounded w-3/4 skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.04}s` }} />
-                    <div className="h-2.5 bg-gray-50 rounded w-1/2 skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.06}s` }} />
+            {[...Array(8)].map((_, i) => {
+              const sk = (delay: number) => ({
+                background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)',
+                backgroundSize: '200% 100%',
+                animation: `skeleton-shimmer 1.5s ease-in-out infinite ${delay}s`,
+              })
+              const base = i * 0.08
+              return (
+                <div key={i} className="flex items-center gap-4 px-4 py-4 border-b border-gray-50">
+                  <div className="h-4 w-6 rounded" style={sk(base)} />
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="w-10 h-10 rounded-lg flex-shrink-0" style={sk(base + 0.02)} />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3.5 rounded w-3/4" style={sk(base + 0.04)} />
+                      <div className="h-2.5 rounded w-1/2" style={sk(base + 0.06)} />
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center gap-1.5 min-w-[60px]">
+                    <div className="h-4 w-12 rounded" style={sk(base + 0.08)} />
+                    <div className="h-1.5 w-14 rounded-full" style={sk(base + 0.1)} />
+                  </div>
+                  <div className="flex flex-col items-center gap-1.5 min-w-[60px]">
+                    <div className="h-4 w-12 rounded" style={sk(base + 0.12)} />
+                    <div className="h-1.5 w-14 rounded-full" style={sk(base + 0.14)} />
+                  </div>
+                  <div className="h-4 w-16 rounded" style={sk(base + 0.16)} />
+                  <div className="h-4 w-16 rounded" style={sk(base + 0.18)} />
+                  <div className="h-4 w-20 rounded" style={sk(base + 0.2)} />
+                  <div className="h-5 w-10 rounded-full" style={sk(base + 0.22)} />
+                  <div className="flex gap-1">
+                    <div className="h-5 w-10 rounded" style={sk(base + 0.24)} />
+                    <div className="h-5 w-8 rounded" style={sk(base + 0.26)} />
                   </div>
                 </div>
-                {/* YES 胜率 */}
-                <div className="flex flex-col items-center gap-1.5 min-w-[60px]">
-                  <div className="h-4 w-12 bg-gray-100 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.08}s` }} />
-                  <div className="h-1.5 w-14 bg-gray-100 rounded-full skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.1}s` }} />
-                </div>
-                {/* NO 胜率 */}
-                <div className="flex flex-col items-center gap-1.5 min-w-[60px]">
-                  <div className="h-4 w-12 bg-gray-100 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.12}s` }} />
-                  <div className="h-1.5 w-14 bg-gray-100 rounded-full skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.14}s` }} />
-                </div>
-                {/* 交易量 */}
-                <div className="h-4 w-16 bg-gray-100 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.16}s` }} />
-                {/* 24h交易量 */}
-                <div className="h-4 w-16 bg-gray-100 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.18}s` }} />
-                {/* 日期 */}
-                <div className="h-4 w-20 bg-gray-100 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.2}s` }} />
-                {/* 剩余天数 */}
-                <div className="h-5 w-10 bg-gray-100 rounded-full skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.22}s` }} />
-                {/* 标签 */}
-                <div className="flex gap-1">
-                  <div className="h-5 w-10 bg-gray-50 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.24}s` }} />
-                  <div className="h-5 w-8 bg-gray-50 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.08 + 0.26}s` }} />
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
 
-      {/* 错误状态 */}
-      {error && (
+      {/* 错误状态 - 加载时隐藏 */}
+      {!loading && error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
           {error}
         </div>

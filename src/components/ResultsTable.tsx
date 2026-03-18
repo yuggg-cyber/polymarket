@@ -185,12 +185,23 @@ function EditableNoteCell({
 // 仓位详情行
 // ============================================================
 
-// 可赎回的最低价值阈值（低于此值视为灰尘残留，已实质结算）
-const REDEEMABLE_DUST_THRESHOLD = 0.01
+/**
+ * 灰尘残留判断阈值：
+ * - 绝对值阈值：currentValue < $0.1 视为灰尘
+ * - 比例阈值：currentValue / totalBought < 1% 视为灰尘
+ * 两个条件同时满足时才视为灰尘残留（已实质结算）
+ */
+const REDEEMABLE_DUST_VALUE = 0.1
+const REDEEMABLE_DUST_RATIO = 0.01
 
 /** 判断仓位是否真正可赎回（排除灰尘残留） */
 function isActuallyRedeemable(pos: Position): boolean {
-  return pos.redeemable && pos.currentValue >= REDEEMABLE_DUST_THRESHOLD
+  if (!pos.redeemable || pos.currentValue <= 0) return false
+  // 绝对值较大（>= $0.1）时直接视为可赎回
+  if (pos.currentValue >= REDEEMABLE_DUST_VALUE) return true
+  // 绝对值较小时，进一步检查占买入总额的比例
+  if (pos.totalBought > 0 && pos.currentValue / pos.totalBought < REDEEMABLE_DUST_RATIO) return false
+  return true
 }
 
 /** 获取持仓状态的排序权重：持有中=0，可合并=1，可赎回(盈利)=2，已结算(亏损)=3 */

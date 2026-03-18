@@ -172,67 +172,54 @@ export function MarketBrowser() {
 
     setLoading(true)
     setError(null)
+    setTotalLoaded(0)
 
-    const allMarkets: MarketItem[] = []
     const endMax = getMonthEnd()
     const now = new Date().toISOString()
-    let offset = 0
-    const limit = 200
 
     try {
-      // 使用 events 端点获取数据（包含 tags 信息）
-      while (true) {
-        if (controller.signal.aborted) break
+      // 后端批量拉取所有分页数据，前端只需一次请求
+      const url = `/api/markets?end_date_min=${encodeURIComponent(now)}&end_date_max=${encodeURIComponent(endMax)}`
+      const resp = await fetch(url, { signal: controller.signal })
+      if (!resp.ok) throw new Error(`API 请求失败: ${resp.status}`)
 
-        const url = `/api/markets?end_date_min=${encodeURIComponent(now)}&end_date_max=${encodeURIComponent(endMax)}&limit=${limit}&offset=${offset}`
-        const resp = await fetch(url, { signal: controller.signal })
-        if (!resp.ok) throw new Error(`API 请求失败: ${resp.status}`)
+      const events: EventData[] = await resp.json()
+      const allMarkets: MarketItem[] = []
 
-        const events: EventData[] = await resp.json()
-        if (events.length === 0) break
+      for (const event of events) {
+        const eventTags = (event.tags || []) as MarketTag[]
 
-        for (const event of events) {
-          const eventTags = (event.tags || []) as MarketTag[]
+        for (const m of event.markets || []) {
+          if (!m.active || m.closed) continue
 
-          for (const m of event.markets || []) {
-            // 只要活跃且未关闭的市场
-            if (!m.active || m.closed) continue
+          const mEnd = new Date(m.endDate)
+          const monthEnd = new Date(endMax)
+          const nowDate = new Date()
+          if (mEnd > monthEnd || mEnd < nowDate) continue
 
-            // 检查市场的 endDate 是否在本月底之前
-            const mEnd = new Date(m.endDate)
-            const monthEnd = new Date(endMax)
-            const nowDate = new Date()
-            if (mEnd > monthEnd || mEnd < nowDate) continue
+          const outcomes = parseOutcomes(m.outcomes)
+          const prices = parsePrices(m.outcomePrices)
 
-            const outcomes = parseOutcomes(m.outcomes)
-            const prices = parsePrices(m.outcomePrices)
-
-            allMarkets.push({
-              id: m.id,
-              question: m.question,
-              slug: m.slug,
-              endDate: m.endDate,
-              image: m.image || event.image,
-              outcomes,
-              outcomePrices: prices,
-              volume: parseFloat(m.volume) || 0,
-              volume24hr: m.volume24hr || 0,
-              liquidity: m.liquidityNum || m.liquidity || 0,
-              description: m.description || '',
-              eventTitle: event.title,
-              eventSlug: event.slug,
-              tags: eventTags,
-            })
-          }
+          allMarkets.push({
+            id: m.id,
+            question: m.question,
+            slug: m.slug,
+            endDate: m.endDate,
+            image: m.image || event.image,
+            outcomes,
+            outcomePrices: prices,
+            volume: parseFloat(m.volume) || 0,
+            volume24hr: m.volume24hr || 0,
+            liquidity: m.liquidityNum || m.liquidity || 0,
+            description: m.description || '',
+            eventTitle: event.title,
+            eventSlug: event.slug,
+            tags: eventTags,
+          })
         }
-
-        offset += limit
-        setTotalLoaded(allMarkets.length)
-
-        // 安全上限
-        if (offset > 5000) break
       }
 
+      setTotalLoaded(allMarkets.length)
       setMarkets(allMarkets)
       setPage(1)
     } catch (err: unknown) {

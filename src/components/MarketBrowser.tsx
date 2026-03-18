@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  Loader2,
   ExternalLink,
   Search,
   RefreshCw,
@@ -151,7 +150,6 @@ export function MarketBrowser() {
   const [sortBy, setSortBy] = useState<'endDate' | 'volume' | 'volume24hr' | 'yesPrice'>('volume')
   const [sortAsc, setSortAsc] = useState(false)
   const [page, setPage] = useState(1)
-  const [totalLoaded, setTotalLoaded] = useState(0)
   const [showSports, setShowSports] = useState(false)
   const [showCrypto, setShowCrypto] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -172,7 +170,6 @@ export function MarketBrowser() {
 
     setLoading(true)
     setError(null)
-    setTotalLoaded(0)
 
     const endMax = getMonthEnd()
     const now = new Date().toISOString()
@@ -219,7 +216,6 @@ export function MarketBrowser() {
         }
       }
 
-      setTotalLoaded(allMarkets.length)
       setMarkets(allMarkets)
       setPage(1)
     } catch (err: unknown) {

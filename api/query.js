@@ -388,6 +388,11 @@ export default async function handler(req, res) {
 
     const netWorth = availableBalance + portfolioValue
 
+    // 持仓盈亏：汇总所有当前持仓的浮动盈亏
+    const holdingPnl = positionsResult.ok
+      ? (openPositions || []).reduce((sum, p) => sum + (p.cashPnl || 0), 0)
+      : 0
+
     const positions = (openPositions || []).map((p) => ({
       title: p.title,
       slug: p.slug,
@@ -421,6 +426,7 @@ export default async function handler(req, res) {
       availableBalance,
       portfolioValue,
       netWorth,
+      holdingPnl,
       totalVolume: volume,
       marketsTraded,
       lastActiveDay: activityStats.lastGap,

@@ -46,6 +46,8 @@ export interface WalletData {
   portfolioValue: number
   /** 净资产 = 可用余额 + 持仓估值 */
   netWorth: number
+  /** 持仓盈亏（当前持仓的浮动盈亏汇总） */
+  holdingPnl: number
   /** 交易额（历史累计，来自 lb-api） */
   totalVolume: number
   /** 池子数（参与的市场数量） */
@@ -73,6 +75,7 @@ export type SortField =
   | 'index'
   | 'netWorth'
   | 'profit'
+  | 'holdingPnl'
   | 'availableBalance'
   | 'portfolioValue'
   | 'totalVolume'

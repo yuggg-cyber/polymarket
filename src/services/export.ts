@@ -7,16 +7,17 @@ import type { WalletData } from '@/types'
 const SUMMARY_HEADERS = [
   '序号',
   '地址',
-  '备注',
   '净资产',
-  '盈亏',
   '可用余额',
   '持仓估值',
-  '交易额',
+  '持仓盈亏',
+  '总盈亏',
   '池子数',
-  '最后活跃(天)',
+  '交易额',
   '活跃天数',
   '活跃月数',
+  '最后活跃(天)',
+  '备注',
   '持仓数量',
   '状态',
   '代理IP',
@@ -27,21 +28,23 @@ function buildSummaryRow(
   index: number,
   addressNotes: Record<string, string>,
 ): (string | number)[] {
+  const isOk = w.status === 'success' || w.status === 'partial'
   return [
     index,
     w.address,
+    isOk ? w.netWorth : '',
+    isOk ? w.availableBalance : '',
+    isOk ? w.portfolioValue : '',
+    isOk ? w.holdingPnl : '',
+    isOk ? w.profit : '',
+    isOk ? w.marketsTraded : '',
+    isOk ? w.totalVolume : '',
+    isOk ? w.activeDays : '',
+    isOk ? w.activeMonths : '',
+    isOk ? (w.lastActiveDay !== null ? w.lastActiveDay : '') : '',
     addressNotes[w.address] || addressNotes[w.address.toLowerCase()] || '',
-    w.status === 'success' ? w.netWorth : '',
-    w.status === 'success' ? w.profit : '',
-    w.status === 'success' ? w.availableBalance : '',
-    w.status === 'success' ? w.portfolioValue : '',
-    w.status === 'success' ? w.totalVolume : '',
-    w.status === 'success' ? w.marketsTraded : '',
-    w.status === 'success' ? (w.lastActiveDay !== null ? w.lastActiveDay : '') : '',
-    w.status === 'success' ? w.activeDays : '',
-    w.status === 'success' ? w.activeMonths : '',
-    w.status === 'success' ? w.positions.length : '',
-    w.status === 'success' ? '成功' : w.status === 'error' ? '失败' : '加载中',
+    isOk ? w.positions.length : '',
+    w.status === 'success' ? '成功' : w.status === 'partial' ? '部分成功' : w.status === 'error' ? '失败' : '加载中',
     w.proxyIp || '',
   ]
 }
@@ -100,8 +103,8 @@ export async function exportToExcel(
   const summaryData = buildSummaryData(results, addressNotes, indexMap)
   const ws1 = XLSX.utils.aoa_to_sheet([SUMMARY_HEADERS, ...summaryData])
 
-  // 设置数字格式（保留2位小数）
-  const numberCols = [3, 4, 5, 6, 7] // 净资产、盈亏、可用余额、持仓估值、交易额
+  // 设置数字格式（保留2位小数）- 净资产、可用余额、持仓估值、持仓盈亏、总盈亏、交易额
+  const numberCols = [2, 3, 4, 5, 6, 8]
   for (let r = 1; r <= summaryData.length; r++) {
     for (const c of numberCols) {
       const cell = ws1[XLSX.utils.encode_cell({ r, c })]
@@ -135,7 +138,7 @@ export async function exportToExcel(
 
   const posData: (string | number)[][] = []
   for (const w of results) {
-    if (w.status !== 'success') continue
+    if (w.status !== 'success' && w.status !== 'partial') continue
     for (const p of w.positions) {
       posData.push([
         w.address,
@@ -221,14 +224,15 @@ export function exportToJSON(
       note,
       status: w.status,
       netWorth: w.netWorth,
-      profit: w.profit,
       availableBalance: w.availableBalance,
       portfolioValue: w.portfolioValue,
-      totalVolume: w.totalVolume,
+      holdingPnl: w.holdingPnl,
+      profit: w.profit,
       marketsTraded: w.marketsTraded,
-      lastActiveDay: w.lastActiveDay,
+      totalVolume: w.totalVolume,
       activeDays: w.activeDays,
       activeMonths: w.activeMonths,
+      lastActiveDay: w.lastActiveDay,
       positionsCount: w.positions.length,
       proxyIp: w.proxyIp || null,
     }

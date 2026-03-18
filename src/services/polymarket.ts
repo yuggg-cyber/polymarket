@@ -442,6 +442,11 @@ async function fetchWalletDataDirect(address: string): Promise<WalletData> {
     endDate: p.endDate,
   }))
 
+  // 持仓盈亏：汇总所有当前持仓的浮动盈亏
+  const holdingPnl = positionsResult.ok
+    ? positions.reduce((sum, p) => sum + p.cashPnl, 0)
+    : 0
+
   // 判断状态：全部成功 = success，部分失败 = partial，全部失败 = error
   let status: 'success' | 'partial' | 'error' = 'success'
   if (failedFields.length === allResults.length) {
@@ -456,6 +461,7 @@ async function fetchWalletDataDirect(address: string): Promise<WalletData> {
     availableBalance,
     portfolioValue,
     netWorth,
+    holdingPnl,
     totalVolume: volume,
     marketsTraded,
     lastActiveDay: activityStats.lastGap,
@@ -532,8 +538,14 @@ async function fetchWalletDataViaProxy(
         status = 'partial'
       }
 
+      // 计算持仓盈亏（从服务端返回的 positions 中汇总）
+      const holdingPnl = Array.isArray(data.positions)
+        ? data.positions.reduce((sum: number, p: Position) => sum + (p.cashPnl || 0), 0)
+        : 0
+
       return {
         ...data,
+        holdingPnl,
         proxyRetries: attempt,
         status,
         failedFields,
@@ -556,6 +568,7 @@ async function fetchWalletDataViaProxy(
     availableBalance: 0,
     portfolioValue: 0,
     netWorth: 0,
+    holdingPnl: 0,
     totalVolume: 0,
     marketsTraded: 0,
     lastActiveDay: null,

@@ -87,19 +87,20 @@ function SortIcon({ active, direction }: { active: boolean; direction: SortDirec
 }
 
 // ============================================================
-// 排序列定义
+// 排序列定义（按用户要求的顺序：净资产-可用余额-持仓估值-持仓盈亏-总盈亏-池子数-交易额-活跃天-活跃月-最后活跃）
 // ============================================================
 
 const SORT_COLS: { field: SortField; label: string; tip: string }[] = [
   { field: 'netWorth',         label: '净资产',   tip: '净资产 = 可用余额 + 持仓估值' },
-  { field: 'profit',           label: '盈亏',     tip: '历史累计盈亏（USD）' },
   { field: 'availableBalance', label: '可用余额', tip: '链上 USDC.e 可用余额' },
   { field: 'portfolioValue',   label: '持仓估值', tip: '当前持仓估值（USD）' },
-  { field: 'totalVolume',      label: '交易额',   tip: '历史累计交易额（USD）' },
+  { field: 'holdingPnl',       label: '持仓盈亏', tip: '当前持仓的浮动盈亏汇总（USD）' },
+  { field: 'profit',           label: '总盈亏',   tip: '历史累计总盈亏（USD）' },
   { field: 'marketsTraded',    label: '池子数',   tip: '参与的预测市场数量' },
-  { field: 'lastActiveDay',    label: '最后活跃', tip: '最近一次交易距今天数' },
+  { field: 'totalVolume',      label: '交易额',   tip: '历史累计交易额（USD）' },
   { field: 'activeDays',       label: '活跃天',   tip: '历史累计活跃交易天数' },
   { field: 'activeMonths',     label: '活跃月',   tip: '历史累计活跃月数' },
+  { field: 'lastActiveDay',    label: '最后活跃', tip: '最近一次交易距今天数' },
 ]
 
 // 列可见性存储
@@ -544,6 +545,7 @@ function SummaryCards({ results }: { results: WalletData[] }) {
   const totalAvailable = ok.reduce((s, r) => s + r.availableBalance, 0)
   const totalHoldings  = ok.reduce((s, r) => s + r.portfolioValue, 0)
   const totalNetWorth  = ok.reduce((s, r) => s + r.netWorth, 0)
+  const totalHoldingPnl = ok.reduce((s, r) => s + r.holdingPnl, 0)
 
   // 计算可赎回总额
   let totalRedeemable = 0
@@ -558,15 +560,17 @@ function SummaryCards({ results }: { results: WalletData[] }) {
   }
 
   const pnl = formatPnL(totalProfit)
+  const holdingPnlFmt = formatPnL(totalHoldingPnl)
 
   const cards: { label: string; value: string; sub: string; cls: string; highlight?: boolean }[] = [
     { label: '总盈亏',     value: pnl.text,                  sub: '历史累计',   cls: pnl.className },
+    { label: '持仓盈亏',   value: holdingPnlFmt.text,        sub: '当前持仓浮动', cls: holdingPnlFmt.className },
     { label: '可用余额',   value: formatUSD(totalAvailable),  sub: 'USDC',       cls: 'text-gray-900' },
     { label: '持仓估值',   value: formatUSD(totalHoldings),   sub: 'USD',        cls: 'text-gray-900' },
     { label: '净资产总计', value: formatUSD(totalNetWorth),    sub: '可用 + 持仓', cls: 'text-gray-900' },
   ]
 
-  // 有可赎回仓位时才显示第5张卡片
+  // 有可赎回仓位时才显示第6张卡片
   if (redeemableCount > 0) {
     cards.push({
       label: '可赎回总额',
@@ -578,7 +582,7 @@ function SummaryCards({ results }: { results: WalletData[] }) {
   }
 
   return (
-    <div className={`grid grid-cols-2 gap-4 mb-6 ${cards.length > 4 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
+    <div className={`grid grid-cols-2 gap-4 mb-6 ${cards.length > 5 ? 'lg:grid-cols-6' : cards.length > 4 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
       {cards.map((c) => (
         <div
           key={c.label}
@@ -793,15 +797,35 @@ export function ResultsTable({
     const failed = isFieldFailed(wallet.failedFields, ...failedFieldNames)
     if (failed) {
       return (
-        <td className="px-3 py-3 text-center text-sm text-orange-400 font-mono" title={`获取失败: ${failedFieldNames.join('、')}`}>
+        <td className="px-2 py-3 text-center text-sm text-orange-400 font-mono" title={`获取失败: ${failedFieldNames.join('、')}`}>
           -
         </td>
       )
     }
     return (
-      <td className={`px-3 py-3 text-center font-mono text-sm ${extraClass}`}>
+      <td className={`px-2 py-3 text-center font-mono text-sm ${extraClass}`}>
         {value !== null ? formatter(value) : '-'}
       </td>
+    )
+  }
+
+  // 渲染盈亏类单元格（带颜色）
+  const renderPnlCell = (
+    wallet: WalletData,
+    value: number,
+    failedFieldNames: string[],
+  ) => {
+    const failed = isFieldFailed(wallet.failedFields, ...failedFieldNames)
+    if (failed) {
+      return (
+        <td className="px-2 py-3 text-center text-sm text-orange-400 font-mono" title={`获取失败: ${failedFieldNames.join('、')}`}>
+          -
+        </td>
+      )
+    }
+    const pnlFmt = formatPnL(value)
+    return (
+      <td className={`px-2 py-3 text-center font-mono text-sm ${pnlFmt.className}`}>{pnlFmt.text}</td>
     )
   }
 
@@ -809,7 +833,6 @@ export function ResultsTable({
   for (const wallet of sorted) {
     const isExpanded = expandedRows.has(wallet.address)
     const hasPos     = wallet.positions && wallet.positions.length > 0
-    const pnl        = formatPnL(wallet.profit)
     const isRefreshing = refreshingAddr === wallet.address
     const rowIndex = addressIndexMap.get(wallet.address) ?? 0
     const isSelected = selectedRows.has(wallet.address)
@@ -969,48 +992,43 @@ export function ResultsTable({
         {/* 数据列 */}
         {wallet.status === 'loading' ? (
           <>
-            <td colSpan={filteredSortCols.length} className="px-3 py-3 text-center text-gray-400">
+            <td colSpan={filteredSortCols.length} className="px-2 py-3 text-center text-gray-400">
               <span className="inline-flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" /> 加载中...
               </span>
             </td>
-            <td className="px-3 py-3"></td>
+            <td className="px-2 py-3"></td>
           </>
         ) : wallet.status === 'error' ? (
           <>
-            <td colSpan={filteredSortCols.length} className="px-3 py-3 text-center text-red-500">
+            <td colSpan={filteredSortCols.length} className="px-2 py-3 text-center text-red-500">
               <span className="inline-flex items-center gap-2">
                 <AlertCircle className="w-4 h-4" /> {wallet.errorMessage || '查询失败'}
               </span>
             </td>
-            <td className="px-3 py-3"></td>
+            <td className="px-2 py-3"></td>
           </>
         ) : (
           <>
-            {/* 动态数据列 */}
+            {/* 动态数据列 - 按新顺序：净资产-可用余额-持仓估值-持仓盈亏-总盈亏-池子数-交易额-活跃天-活跃月-最后活跃 */}
             {visibleCols.has('netWorth') && renderCell(wallet, wallet.netWorth, ['可用余额', '持仓估值'], formatUSD, 'text-gray-800 font-semibold')}
-            {visibleCols.has('profit') && (
-              isFieldFailed(wallet.failedFields, '盈亏') ? (
-                <td className="px-3 py-3 text-center text-sm text-orange-400 font-mono" title="获取失败: 盈亏">-</td>
-              ) : (
-                <td className={`px-3 py-3 text-center font-mono text-sm ${pnl.className}`}>{pnl.text}</td>
-              )
-            )}
             {visibleCols.has('availableBalance') && renderCell(wallet, wallet.availableBalance, ['可用余额'], formatUSD, 'text-gray-700')}
             {visibleCols.has('portfolioValue') && renderCell(wallet, wallet.portfolioValue, ['持仓估值'], formatUSD, 'text-gray-700')}
-            {visibleCols.has('totalVolume') && renderCell(wallet, wallet.totalVolume, ['交易额'], formatUSD, 'text-gray-700')}
+            {visibleCols.has('holdingPnl') && renderPnlCell(wallet, wallet.holdingPnl, ['持仓列表'])}
+            {visibleCols.has('profit') && renderPnlCell(wallet, wallet.profit, ['盈亏'])}
             {visibleCols.has('marketsTraded') && renderCell(wallet, wallet.marketsTraded, ['池子数'], (v) => String(v), 'text-gray-700')}
+            {visibleCols.has('totalVolume') && renderCell(wallet, wallet.totalVolume, ['交易额'], formatUSD, 'text-gray-700')}
+            {visibleCols.has('activeDays') && renderCell(wallet, wallet.activeDays, ['活跃度'], (v) => String(v), 'text-gray-700')}
+            {visibleCols.has('activeMonths') && renderCell(wallet, wallet.activeMonths, ['活跃度'], (v) => String(v), 'text-gray-700')}
             {visibleCols.has('lastActiveDay') && (
               isFieldFailed(wallet.failedFields, '活跃度') ? (
-                <td className="px-3 py-3 text-center text-sm text-orange-400 font-mono" title="获取失败: 活跃度">-</td>
+                <td className="px-2 py-3 text-center text-sm text-orange-400 font-mono" title="获取失败: 活跃度">-</td>
               ) : (
-                <td className="px-3 py-3 text-center text-sm text-gray-600">
+                <td className="px-2 py-3 text-center text-sm text-gray-600">
                   {wallet.lastActiveDay !== null ? `${wallet.lastActiveDay}天前` : '-'}
                 </td>
               )
             )}
-            {visibleCols.has('activeDays') && renderCell(wallet, wallet.activeDays, ['活跃度'], (v) => String(v), 'text-gray-700')}
-            {visibleCols.has('activeMonths') && renderCell(wallet, wallet.activeMonths, ['活跃度'], (v) => String(v), 'text-gray-700')}
             {/* 备注 */}
             <EditableNoteCell
               address={wallet.address}
@@ -1223,7 +1241,7 @@ export function ResultsTable({
 
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse" style={{ minWidth: '1200px' }}>
             <thead>
               <tr className="bg-gray-50 border-b-2 border-gray-200">
                 {/* 全选 checkbox */}
@@ -1251,7 +1269,7 @@ export function ResultsTable({
                   地址
                 </th>
                 {filteredSortCols.map(({ field, label, tip }) => (
-                  <th key={field} className="px-3 py-3 text-center whitespace-nowrap">
+                  <th key={field} className="px-2 py-3 text-center whitespace-nowrap">
                     <button
                       onClick={() => handleSort(field)}
                       className="inline-flex items-center justify-center hover:text-gray-900 transition-colors text-sm font-semibold text-gray-600"

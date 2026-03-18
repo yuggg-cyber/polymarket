@@ -169,6 +169,7 @@ function App() {
         availableBalance: 0,
         portfolioValue: 0,
         netWorth: 0,
+        holdingPnl: 0,
         totalVolume: 0,
         marketsTraded: 0,
         lastActiveDay: null,
@@ -216,6 +217,7 @@ function App() {
             availableBalance: 0,
             portfolioValue: 0,
             netWorth: 0,
+            holdingPnl: 0,
             totalVolume: 0,
             marketsTraded: 0,
             lastActiveDay: null,
@@ -237,6 +239,7 @@ function App() {
               availableBalance: 0,
               portfolioValue: 0,
               netWorth: 0,
+              holdingPnl: 0,
               totalVolume: 0,
               marketsTraded: 0,
               lastActiveDay: null,
@@ -274,6 +277,7 @@ function App() {
         availableBalance: 0,
         portfolioValue: 0,
         netWorth: 0,
+        holdingPnl: 0,
         totalVolume: 0,
         marketsTraded: 0,
         lastActiveDay: null,
@@ -501,7 +505,7 @@ function App() {
     <div className="min-h-screen bg-[#f8f9fa]">
       {/* 顶部标题栏 */}
       <header className="bg-white border-b border-gray-200">
-        <div className="max-w-[1400px] mx-auto px-6 py-5 flex items-center gap-4">
+        <div className="max-w-[1800px] mx-auto px-6 py-5 flex items-center gap-4">
           <div className="flex-1">
             <h1 className="text-xl font-bold text-gray-900">
               Polymarket 钱包分析工具
@@ -554,7 +558,7 @@ function App() {
       </Drawer>
 
       {/* 主内容区 */}
-      <main className="max-w-[1400px] mx-auto px-6 py-8">
+      <main className="max-w-[1800px] mx-auto px-6 py-8">
         <SearchSection
           activeTab={activeTab}
           onTabChange={setActiveTab}

@@ -140,46 +140,12 @@ function isCryptoPriceEvent(tags: MarketTag[], question: string): boolean {
   return false
 }
 
-/** 天气预测相关 tag slug */
-const WEATHER_SLUGS = new Set([
-  'weather', 'temperature', 'climate', 'hurricane', 'tornado', 'storm',
-  'rainfall', 'snowfall', 'weather-forecast', 'natural-disasters',
-])
-
-/** 天气预测关键词（市场标题匹配） */
-const WEATHER_KEYWORDS = [
-  'temperature', 'degrees', 'fahrenheit', 'celsius',
-  'hurricane', 'tornado', 'storm', 'rainfall', 'snowfall',
-  'weather', 'hottest', 'coldest', 'heat wave', 'heatwave',
-  'wind speed', 'flood', 'drought', 'wildfire',
-  'category 1', 'category 2', 'category 3', 'category 4', 'category 5',
-  'tropical storm', 'tropical depression',
-  'high temperature', 'low temperature', 'record temperature',
-  'above normal', 'below normal',
-  'warmest', 'coolest',
-]
-
-function isWeatherEvent(tags: MarketTag[], question: string): boolean {
-  // 通过 tag 判断
-  if (tags.some((t) => WEATHER_SLUGS.has(t.slug?.toLowerCase() || ''))) return true
-  // 通过市场标题关键词判断
-  const q = question.toLowerCase()
-  if (WEATHER_KEYWORDS.some((kw) => q.includes(kw))) return true
-  return false
+function isWeatherEvent(_tags: MarketTag[], question: string): boolean {
+  return question.toLowerCase().includes('temperature')
 }
 
-/** Up or Down 预测关键词（市场标题匹配） */
-const UP_OR_DOWN_KEYWORDS = [
-  'up or down',
-  'go up or down',
-  'higher or lower',
-  'rise or fall',
-  'increase or decrease',
-]
-
 function isUpOrDownEvent(question: string): boolean {
-  const q = question.toLowerCase()
-  return UP_OR_DOWN_KEYWORDS.some((kw) => q.includes(kw))
+  return question.toLowerCase().includes('up or down')
 }
 
 /** 解析用户输入的最低交易量字符串为数字（支持 K/M 后缀） */
@@ -423,33 +389,33 @@ export function MarketBrowser({ markets, loading, streaming = false, error, onRe
             <button
               onClick={() => { setShowSports(!showSports); setPage(1) }}
               className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
-                showSports
-                  ? 'bg-orange-50 border-orange-200 text-orange-700'
-                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                !showSports
+                  ? 'bg-blue-500 border-blue-500 text-white'
+                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}
             >
               <Filter className="w-4 h-4" />
-              {showSports ? '显示全部（含体育）' : '已排除体育赛事'}
+              {!showSports ? '已排除体育赛事' : '排除体育赛事'}
             </button>
 
             <button
               onClick={() => { setShowCrypto(!showCrypto); setPage(1) }}
               className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
-                showCrypto
-                  ? 'bg-purple-50 border-purple-200 text-purple-700'
-                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                !showCrypto
+                  ? 'bg-blue-500 border-blue-500 text-white'
+                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}
             >
               <Filter className="w-4 h-4" />
-              {showCrypto ? '显示全部（含加密预测）' : '已排除加密预测'}
+              {!showCrypto ? '已排除加密预测' : '排除加密预测'}
             </button>
 
             <button
               onClick={() => { setShowWeather(!showWeather); setPage(1) }}
               className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
                 !showWeather
-                  ? 'bg-sky-50 border-sky-200 text-sky-700'
-                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                  ? 'bg-blue-500 border-blue-500 text-white'
+                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}
             >
               <Filter className="w-4 h-4" />
@@ -460,8 +426,8 @@ export function MarketBrowser({ markets, loading, streaming = false, error, onRe
               onClick={() => { setShowUpOrDown(!showUpOrDown); setPage(1) }}
               className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
                 !showUpOrDown
-                  ? 'bg-amber-50 border-amber-200 text-amber-700'
-                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                  ? 'bg-blue-500 border-blue-500 text-white'
+                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}
             >
               <Filter className="w-4 h-4" />

@@ -683,47 +683,59 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
           <div ref={tableRef} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             {/* PC 端表格 */}
             <div className="hidden md:block overflow-x-auto">
-              <table className="w-full" style={{ tableLayout: 'fixed' }}>
+              <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1100px' }}>
+                <colgroup>
+                  <col style={{ width: '40px' }} />
+                  <col style={{ width: '40px' }} />
+                  <col style={{ width: '28%' }} />
+                  <col style={{ width: '80px' }} />
+                  <col style={{ width: '80px' }} />
+                  <col style={{ width: '88px' }} />
+                  <col style={{ width: '88px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '68px' }} />
+                  <col />
+                </colgroup>
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600" style={{ width: '44px' }}>
+                    <th className="px-2 py-3 text-center text-sm font-semibold text-gray-600">
                       <Star className="w-4 h-4 inline text-gray-400" />
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600" style={{ width: '48px' }}>#</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">
+                    <th className="px-2 py-3 text-left text-sm font-semibold text-gray-600">#</th>
+                    <th className="px-3 py-3 text-left text-sm font-semibold text-gray-600">
                       预测市场
                     </th>
                     <th
-                      className="px-4 py-3 text-center text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600" style={{ width: '100px' }}
+                      className="px-2 py-3 text-center text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600"
                       onClick={() => handleSort('yesPrice')}
                     >
                       YES 胜率 <SortIcon field="yesPrice" />
                     </th>
-                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600" style={{ width: '100px' }}>
+                    <th className="px-2 py-3 text-center text-sm font-semibold text-gray-600">
                       NO 胜率
                     </th>
                     <th
-                      className="px-4 py-3 text-right text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600" style={{ width: '100px' }}
+                      className="px-2 py-3 text-right text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600"
                       onClick={() => handleSort('volume')}
                     >
                       总交易量 <SortIcon field="volume" />
                     </th>
                     <th
-                      className="px-4 py-3 text-right text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600" style={{ width: '100px' }}
+                      className="px-2 py-3 text-right text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600"
                       onClick={() => handleSort('volume24hr')}
                     >
                       24h交易量 <SortIcon field="volume24hr" />
                     </th>
                     <th
-                      className="px-4 py-3 text-center text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600" style={{ width: '110px' }}
+                      className="px-2 py-3 text-center text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600"
                       onClick={() => handleSort('endDate')}
                     >
                       结束日期 <SortIcon field="endDate" />
                     </th>
-                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600" style={{ width: '80px' }}>
+                    <th className="px-2 py-3 text-center text-sm font-semibold text-gray-600">
                       剩余时间
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600" style={{ width: '120px' }}>
+                    <th className="px-2 py-3 text-left text-sm font-semibold text-gray-600">
                       标签
                     </th>
                   </tr>
@@ -761,13 +773,13 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
                             </button>
                           </td>
                           {/* 序号 */}
-                          <td className="px-4 py-3.5 text-sm text-gray-400 tabular-nums">
+                          <td className="px-2 py-3.5 text-sm text-gray-400 tabular-nums">
                             {rowNum}
                           </td>
 
                           {/* 市场名称 */}
-                          <td className="px-4 py-3.5 overflow-hidden">
-                            <div className="flex items-start gap-3 overflow-hidden">
+                          <td className="px-3 py-3.5 overflow-hidden">
+                            <div className="flex items-start gap-2 overflow-hidden">
                               {m.image && (
                                 <img
                                   src={m.image}
@@ -796,7 +808,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
                           </td>
 
                           {/* YES 胜率 */}
-                          <td className="px-4 py-3.5 text-center">
+                          <td className="px-2 py-3.5 text-center">
                             <div className="flex flex-col items-center">
                               <span className={`text-base font-semibold tabular-nums ${
                                 yesPrice >= 0.7 ? 'text-emerald-600' :
@@ -816,7 +828,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
                           </td>
 
                           {/* NO 胜率 */}
-                          <td className="px-4 py-3.5 text-center">
+                          <td className="px-2 py-3.5 text-center">
                             <div className="flex flex-col items-center">
                               <span className={`text-base font-semibold tabular-nums ${
                                 noPrice >= 0.7 ? 'text-red-500' :
@@ -835,17 +847,17 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
                           </td>
 
                           {/* 总交易量 */}
-                          <td className="px-4 py-3.5 text-right text-sm font-medium text-gray-700 tabular-nums">
+                          <td className="px-2 py-3.5 text-right text-sm font-medium text-gray-700 tabular-nums">
                             {formatVolume(m.volume)}
                           </td>
 
                           {/* 24h 交易量 */}
-                          <td className="px-4 py-3.5 text-right text-sm font-medium text-gray-700 tabular-nums">
+                          <td className="px-2 py-3.5 text-right text-sm font-medium text-gray-700 tabular-nums">
                             {formatVolume(m.volume24hr)}
                           </td>
 
                           {/* 结束日期 */}
-                          <td className="px-4 py-3.5 text-center text-sm text-gray-600">
+                          <td className="px-2 py-3.5 text-center text-sm text-gray-600">
                             <div className="flex items-center justify-center gap-1">
                               <Calendar className="w-3.5 h-3.5 text-gray-400" />
                               {formatDate(m.endDate)}
@@ -853,7 +865,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
                           </td>
 
                           {/* 剩余时间 */}
-                          <td className="px-4 py-3.5 text-center">
+                          <td className="px-2 py-3.5 text-center">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                               isSports ? (
                                 days <= 3 ? 'bg-red-50 text-red-600' :
@@ -875,7 +887,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
                           </td>
 
                           {/* 标签 */}
-                          <td className="px-4 py-3.5 overflow-hidden">
+                          <td className="px-2 py-3.5 overflow-hidden">
                             <div className="flex flex-nowrap gap-1 overflow-hidden">
                               {m.tags.slice(0, 3).map((t) => (
                                 <span

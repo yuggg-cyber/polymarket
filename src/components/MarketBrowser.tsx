@@ -683,47 +683,47 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
           <div ref={tableRef} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             {/* PC 端表格 */}
             <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full" style={{ tableLayout: 'fixed' }}>
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600 w-10">
+                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600" style={{ width: '44px' }}>
                       <Star className="w-4 h-4 inline text-gray-400" />
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 w-12">#</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 min-w-[300px]">
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600" style={{ width: '48px' }}>#</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">
                       预测市场
                     </th>
                     <th
-                      className="px-4 py-3 text-center text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600 min-w-[120px]"
+                      className="px-4 py-3 text-center text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600" style={{ width: '100px' }}
                       onClick={() => handleSort('yesPrice')}
                     >
                       YES 胜率 <SortIcon field="yesPrice" />
                     </th>
-                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600 min-w-[120px]">
+                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600" style={{ width: '100px' }}>
                       NO 胜率
                     </th>
                     <th
-                      className="px-4 py-3 text-right text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600 min-w-[100px]"
+                      className="px-4 py-3 text-right text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600" style={{ width: '100px' }}
                       onClick={() => handleSort('volume')}
                     >
                       总交易量 <SortIcon field="volume" />
                     </th>
                     <th
-                      className="px-4 py-3 text-right text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600 min-w-[100px]"
+                      className="px-4 py-3 text-right text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600" style={{ width: '100px' }}
                       onClick={() => handleSort('volume24hr')}
                     >
                       24h交易量 <SortIcon field="volume24hr" />
                     </th>
                     <th
-                      className="px-4 py-3 text-center text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600 min-w-[110px]"
+                      className="px-4 py-3 text-center text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600" style={{ width: '110px' }}
                       onClick={() => handleSort('endDate')}
                     >
                       结束日期 <SortIcon field="endDate" />
                     </th>
-                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600 min-w-[80px]">
+                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600" style={{ width: '80px' }}>
                       剩余时间
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 min-w-[120px]">
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600" style={{ width: '120px' }}>
                       标签
                     </th>
                   </tr>
@@ -766,8 +766,8 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
                           </td>
 
                           {/* 市场名称 */}
-                          <td className="px-4 py-3.5">
-                            <div className="flex items-start gap-3">
+                          <td className="px-4 py-3.5 overflow-hidden">
+                            <div className="flex items-start gap-3 overflow-hidden">
                               {m.image && (
                                 <img
                                   src={m.image}
@@ -781,7 +781,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
                                   href={`https://polymarket.com/event/${m.eventSlug || m.slug}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors line-clamp-2"
+                                  className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors line-clamp-1"
                                 >
                                   {m.question}
                                   <ExternalLink className="w-3 h-3 inline ml-1 text-gray-400" />
@@ -875,8 +875,8 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
                           </td>
 
                           {/* 标签 */}
-                          <td className="px-4 py-3.5">
-                            <div className="flex flex-wrap gap-1">
+                          <td className="px-4 py-3.5 overflow-hidden">
+                            <div className="flex flex-nowrap gap-1 overflow-hidden">
                               {m.tags.slice(0, 3).map((t) => (
                                 <span
                                   key={t.id}

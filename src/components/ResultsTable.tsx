@@ -589,19 +589,19 @@ function SummaryCards({ results }: { results: WalletData[] }) {
   }
 
   return (
-    <div className={`grid grid-cols-2 gap-4 mb-6 ${cards.length > 5 ? 'lg:grid-cols-6' : cards.length > 4 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
+    <div className={`grid grid-cols-2 gap-2 mb-4 md:gap-4 md:mb-6 ${cards.length > 5 ? 'lg:grid-cols-6' : cards.length > 4 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
       {cards.map((c) => (
         <div
           key={c.label}
-          className={`bg-white rounded-xl border px-5 py-4 ${
+          className={`bg-white rounded-xl border px-3 py-2.5 md:px-5 md:py-4 ${
             c.highlight
               ? 'border-amber-300 bg-amber-50/50'
               : 'border-gray-200'
           }`}
         >
-          <div className={`text-sm mb-1 ${c.highlight ? 'text-amber-600 font-medium' : 'text-gray-500'}`}>{c.label}</div>
-          <div className={`text-2xl font-bold tracking-tight ${c.cls}`}>{c.value}</div>
-          <div className={`text-xs mt-1 ${c.highlight ? 'text-amber-500' : 'text-gray-400'}`}>{c.sub}</div>
+          <div className={`text-xs mb-0.5 md:text-sm md:mb-1 ${c.highlight ? 'text-amber-600 font-medium' : 'text-gray-500'}`}>{c.label}</div>
+          <div className={`text-lg font-bold tracking-tight md:text-2xl ${c.cls}`}>{c.value}</div>
+          <div className={`text-[10px] mt-0.5 md:text-xs md:mt-1 ${c.highlight ? 'text-amber-500' : 'text-gray-400'}`}>{c.sub}</div>
         </div>
       ))}
     </div>
@@ -1059,13 +1059,13 @@ export function ResultsTable({
   const isPartialSelected = selectedRows.size > 0 && selectedRows.size < results.length
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3 md:space-y-5">
       <SummaryCards results={results} />
 
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-baseline gap-3">
-          <h2 className="text-lg font-bold text-gray-900">查询结果</h2>
-          <span className="text-sm text-gray-500">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:flex-wrap md:gap-3">
+        <div className="flex flex-col gap-0.5 md:flex-row md:items-baseline md:gap-3">
+          <h2 className="text-base font-bold text-gray-900 md:text-lg">查询结果</h2>
+          <span className="text-xs text-gray-500 md:text-sm">
             已查询 {results.length} 个地址，成功 {okCount} 个
             {partialCount > 0 && (
               <span className="text-orange-500 ml-1">，部分成功 {partialCount} 个</span>
@@ -1076,22 +1076,22 @@ export function ResultsTable({
           </span>
           {/* 记忆查询保存时间提示 */}
           {isMemoTab && memoSavedTime && !isLoading && (
-            <span className="text-sm text-gray-400">
+            <span className="text-xs text-gray-400 md:text-sm">
               （保存于 {memoSavedTime}）
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap md:gap-2">
           {/* 搜索框 */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="搜索地址 / 备注 / 序号"
-              className="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-56 transition-colors"
+              className="pl-9 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full transition-colors sm:w-56 md:py-2 md:text-sm"
             />
             {searchQuery && (
               <button
@@ -1107,11 +1107,11 @@ export function ResultsTable({
           {onRetryFailed && retryableCount > 0 && !isLoading && (
             <button
               onClick={onRetryFailed}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors shadow-sm"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors shadow-sm md:gap-2 md:px-4 md:py-2 md:text-sm"
               title={`重新查询 ${retryableCount} 个失败/部分成功的地址`}
             >
-              <RotateCcw className="w-4 h-4" />
-              重试失败 ({retryableCount})
+              <RotateCcw className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              重试 ({retryableCount})
             </button>
           )}
 
@@ -1120,10 +1120,10 @@ export function ResultsTable({
             <button
               onClick={onRefreshAll}
               disabled={isLoading}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50 md:gap-2 md:px-4 md:py-2 md:text-sm"
               title="重新查询所有地址"
             >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 md:w-4 md:h-4 ${isLoading ? 'animate-spin' : ''}`} />
               刷新全部
             </button>
           )}
@@ -1132,10 +1132,10 @@ export function ResultsTable({
           {isMemoTab && onMemoClear && results.length > 0 && !isLoading && (
             <button
               onClick={() => setShowClearConfirm(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-500 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors shadow-sm"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-red-500 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors shadow-sm md:gap-2 md:px-4 md:py-2 md:text-sm"
               title="清除已保存的记忆查询数据"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
               清除
             </button>
           )}
@@ -1146,10 +1146,10 @@ export function ResultsTable({
               <button
                 onClick={() => setExportMenuOpen(!exportMenuOpen)}
                 onBlur={() => setTimeout(() => setExportMenuOpen(false), 200)}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors shadow-sm"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors shadow-sm md:gap-2 md:px-4 md:py-2 md:text-sm"
                 title="导出数据"
               >
-                <Download className="w-4 h-4" />
+                <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 导出{selectedRows.size > 0 ? ` (${selectedRows.size})` : ''}
                 <ChevronDownIcon className="w-3.5 h-3.5 text-gray-400" />
               </button>
@@ -1187,14 +1187,14 @@ export function ResultsTable({
             <button
               onClick={() => setColMenuOpen(!colMenuOpen)}
               onBlur={() => setTimeout(() => setColMenuOpen(false), 200)}
-              className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors shadow-sm ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm md:gap-2 md:px-3 md:py-2 md:text-sm ${
                 visibleCols.size < ALL_COL_FIELDS.length
                   ? 'text-blue-600 bg-blue-50 border-blue-300 hover:bg-blue-100'
                   : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400'
               }`}
               title="设置显示列"
             >
-              <Settings2 className="w-4 h-4" />
+              <Settings2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
               列
             </button>
             {colMenuOpen && (
@@ -1231,7 +1231,7 @@ export function ResultsTable({
 
       {/* 选中提示 */}
       {selectedRows.size > 0 && (
-        <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs md:gap-3 md:px-4 md:py-2.5 md:text-sm">
           <span className="text-blue-700">
             已选择 <strong>{selectedRows.size}</strong> 个地址
           </span>

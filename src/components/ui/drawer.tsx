@@ -50,8 +50,8 @@ export function Drawer({ open, onClose, title, children, className }: DrawerProp
         )}
       >
         {/* 头部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 md:px-6 md:py-4">
+          <h2 className="text-base font-bold text-gray-900 md:text-lg">{title}</h2>
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
@@ -60,7 +60,7 @@ export function Drawer({ open, onClose, title, children, className }: DrawerProp
           </button>
         </div>
         {/* 内容 */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex-1 overflow-y-auto px-4 py-3 md:px-6 md:py-5">
           {children}
         </div>
       </div>

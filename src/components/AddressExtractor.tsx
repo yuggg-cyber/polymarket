@@ -215,7 +215,7 @@ export function AddressExtractor() {
           className="min-h-[120px] text-sm bg-gray-50 border-gray-200 resize-y"
           rows={5}
         />
-        <div className="mt-3 flex items-center justify-between">
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             {inputError ? (
               <div className="flex items-center gap-2 text-sm text-red-500">
@@ -245,8 +245,8 @@ export function AddressExtractor() {
       {results.length > 0 && (
         <div className="space-y-4">
           {/* 统计信息 + 操作按钮 */}
-          <div className="flex items-center justify-between flex-wrap gap-3 pt-3 border-t border-gray-100">
-            <div className="text-sm text-gray-600">
+          <div className="flex flex-col gap-2 pt-3 border-t border-gray-100 sm:flex-row sm:items-center sm:justify-between sm:flex-wrap sm:gap-3">
+            <div className="text-xs text-gray-600 sm:text-sm">
               共 {results.length} 个账户，成功 {successCount} 个
               {errorCount > 0 && <span className="text-red-500 ml-1">，失败 {errorCount} 个</span>}
               {allPolymarketAddresses.length > 0 && (
@@ -256,12 +256,12 @@ export function AddressExtractor() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               {/* 复制全部 */}
               {allPolymarketAddresses.length > 0 && (
                 <button
                   onClick={copyAll}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm"
                   title="复制所有 Polymarket 地址"
                 >
                   {copiedAll ? (
@@ -279,7 +279,7 @@ export function AddressExtractor() {
                   <button
                     onClick={() => setExportMenuOpen(!exportMenuOpen)}
                     onBlur={() => setTimeout(() => setExportMenuOpen(false), 200)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm"
                     title="导出数据"
                   >
                     <Download className="w-4 h-4" />
@@ -318,8 +318,8 @@ export function AddressExtractor() {
           </div>
 
           {/* 结果列表 */}
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full">
+          <div className="border border-gray-200 rounded-lg overflow-hidden overflow-x-auto">
+            <table className="w-full" style={{ minWidth: '480px' }}>
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="px-3 py-2.5 text-left text-sm font-semibold text-gray-600 w-[40px]">#</th>

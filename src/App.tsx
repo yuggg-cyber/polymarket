@@ -555,17 +555,19 @@ function App() {
     <div className="min-h-screen bg-[#f8f9fa]">
       {/* 顶部标题栏 */}
       <header className="bg-white border-b border-gray-200">
-        <div className="max-w-[1800px] mx-auto px-6 py-5 flex items-center gap-4">
-          <div className="flex-1">
-            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2.5">
+        <div className="max-w-[1800px] mx-auto px-3 py-3 flex flex-col gap-2 md:px-6 md:py-5 md:flex-row md:items-center md:gap-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-base font-bold text-gray-900 flex items-center gap-2 md:text-xl md:gap-2.5">
               <img
                 src="/logo.png"
                 alt="Logo"
-                className="h-7 w-auto"
+                className="h-6 w-auto md:h-7"
               />
-              {pageMode === 'wallet' ? 'Polymarket 钱包分析' : 'Polymarket 市场浏览'}
+              <span className="truncate">
+                {pageMode === 'wallet' ? 'Polymarket 钱包分析' : 'Polymarket 市场浏览'}
+              </span>
             </h1>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <p className="text-xs text-gray-500 mt-0.5 hidden sm:block md:text-sm">
               {pageMode === 'wallet'
                 ? '批量查询和分析 Polymarket 钱包地址的交易数据'
                 : '浏览本月到期的活跃预测市场及实时胜率'}
@@ -573,12 +575,12 @@ function App() {
           </div>
 
           {/* 右侧功能按钮 */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
             {/* 页面切换按钮 */}
             <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
               <button
                 onClick={() => setPageMode('wallet')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors md:px-3 md:text-sm ${
                   pageMode === 'wallet'
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-500 hover:text-gray-700'
@@ -588,7 +590,7 @@ function App() {
               </button>
               <button
                 onClick={() => setPageMode('market')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors md:px-3 md:text-sm ${
                   pageMode === 'market'
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-500 hover:text-gray-700'
@@ -599,13 +601,13 @@ function App() {
             </div>
             <button
               onClick={() => setExtractDrawerOpen(true)}
-              className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors"
+              className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors md:px-4 md:py-2 md:text-sm"
             >
               地址提取
             </button>
             <button
               onClick={() => setProxyDrawerOpen(true)}
-              className="relative px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors"
+              className="relative px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors md:px-4 md:py-2 md:text-sm"
             >
               代理设置
               {proxyConfig.enabled && (
@@ -639,7 +641,7 @@ function App() {
 
       {/* 主内容区 */}
       {pageMode === 'wallet' ? (
-        <main className="max-w-[1800px] mx-auto px-6 py-8">
+        <main className="max-w-[1800px] mx-auto px-3 py-4 md:px-6 md:py-8">
           <SearchSection
             activeTab={activeTab}
             onTabChange={setActiveTab}

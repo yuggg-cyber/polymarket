@@ -319,64 +319,64 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
   const nonSportsCount = markets.length - sportsCount
 
   return (
-    <div className="max-w-[1800px] mx-auto px-6 py-8">
+    <div className="max-w-[1800px] mx-auto px-3 py-4 md:px-6 md:py-8">
       {/* 标题和统计 - 加载时隐藏 */}
       {!loading && (
-      <div className="mb-6">
-        <div className="flex items-center justify-end mb-4">
+      <div className="mb-4 md:mb-6">
+        <div className="flex items-center justify-end mb-3 md:mb-4">
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors md:gap-2 md:px-4 md:py-2 md:text-sm"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 md:w-4 md:h-4 ${loading ? 'animate-spin' : ''}`} />
             刷新数据
           </button>
         </div>
 
         {/* 统计卡片 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="text-sm text-gray-500">总市场数</div>
-              <div className="text-2xl font-bold text-gray-900 mt-1">{markets.length}</div>
+          <div className="grid grid-cols-3 gap-2 mb-4 md:grid-cols-4 md:gap-4 md:mb-6 lg:grid-cols-7">
+            <div className="bg-white rounded-lg border border-gray-200 p-2.5 md:p-4">
+              <div className="text-xs text-gray-500 md:text-sm">总市场数</div>
+              <div className="text-lg font-bold text-gray-900 mt-0.5 md:text-2xl md:mt-1">{markets.length}</div>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="text-sm text-gray-500">非体育市场</div>
-              <div className="text-2xl font-bold text-blue-600 mt-1">{nonSportsCount}</div>
+            <div className="bg-white rounded-lg border border-gray-200 p-2.5 md:p-4">
+              <div className="text-xs text-gray-500 md:text-sm">非体育市场</div>
+              <div className="text-lg font-bold text-blue-600 mt-0.5 md:text-2xl md:mt-1">{nonSportsCount}</div>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="text-sm text-gray-500">体育赛事</div>
-              <div className="text-2xl font-bold text-orange-500 mt-1">{sportsCount}</div>
+            <div className="bg-white rounded-lg border border-gray-200 p-2.5 md:p-4">
+              <div className="text-xs text-gray-500 md:text-sm">体育赛事</div>
+              <div className="text-lg font-bold text-orange-500 mt-0.5 md:text-2xl md:mt-1">{sportsCount}</div>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="text-sm text-gray-500">加密预测</div>
-              <div className="text-2xl font-bold text-purple-600 mt-1">{cryptoCount}</div>
+            <div className="bg-white rounded-lg border border-gray-200 p-2.5 md:p-4">
+              <div className="text-xs text-gray-500 md:text-sm">加密预测</div>
+              <div className="text-lg font-bold text-purple-600 mt-0.5 md:text-2xl md:mt-1">{cryptoCount}</div>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="text-sm text-gray-500">天气预测</div>
-              <div className="text-2xl font-bold text-sky-600 mt-1">{weatherCount}</div>
+            <div className="bg-white rounded-lg border border-gray-200 p-2.5 md:p-4">
+              <div className="text-xs text-gray-500 md:text-sm">天气预测</div>
+              <div className="text-lg font-bold text-sky-600 mt-0.5 md:text-2xl md:mt-1">{weatherCount}</div>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="text-sm text-gray-500">Up or Down</div>
-              <div className="text-2xl font-bold text-amber-600 mt-1">{upOrDownCount}</div>
+            <div className="bg-white rounded-lg border border-gray-200 p-2.5 md:p-4">
+              <div className="text-xs text-gray-500 md:text-sm">Up or Down</div>
+              <div className="text-lg font-bold text-amber-600 mt-0.5 md:text-2xl md:mt-1">{upOrDownCount}</div>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="text-sm text-gray-500">当前显示</div>
-              <div className="text-2xl font-bold text-emerald-600 mt-1">{filtered.length}</div>
+            <div className="bg-white rounded-lg border border-gray-200 p-2.5 md:p-4">
+              <div className="text-xs text-gray-500 md:text-sm">当前显示</div>
+              <div className="text-lg font-bold text-emerald-600 mt-0.5 md:text-2xl md:mt-1">{filtered.length}</div>
             </div>
           </div>
 
         {/* 搜索和过滤 */}
         
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[240px]">
+          <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:gap-3">
+            <div className="relative flex-1 min-w-0 md:min-w-[240px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => { setSearchTerm(e.target.value); setPage(1) }}
                 placeholder="搜索市场名称、事件、标签..."
-                className="w-full pl-10 pr-10 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-10 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent md:py-2.5"
               />
               {searchTerm && (
                 <button
@@ -388,76 +388,78 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
               )}
             </div>
 
-            <button
-              onClick={() => { setShowSports(!showSports); setPage(1) }}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
-                !showSports
-                  ? 'bg-blue-500 border-blue-500 text-white'
-                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <Filter className="w-4 h-4" />
-              {!showSports ? '已排除体育赛事' : '排除体育赛事'}
-            </button>
-
-            <button
-              onClick={() => { setShowCrypto(!showCrypto); setPage(1) }}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
-                !showCrypto
-                  ? 'bg-blue-500 border-blue-500 text-white'
-                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <Filter className="w-4 h-4" />
-              {!showCrypto ? '已排除加密预测' : '排除加密预测'}
-            </button>
-
-            <button
-              onClick={() => { setShowWeather(!showWeather); setPage(1) }}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
-                !showWeather
-                  ? 'bg-blue-500 border-blue-500 text-white'
-                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <Filter className="w-4 h-4" />
-              {!showWeather ? '已排除天气预测' : '排除天气预测'}
-            </button>
-
-            <button
-              onClick={() => { setShowUpOrDown(!showUpOrDown); setPage(1) }}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
-                !showUpOrDown
-                  ? 'bg-blue-500 border-blue-500 text-white'
-                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <Filter className="w-4 h-4" />
-              {!showUpOrDown ? '已排除 Up or Down' : '排除 Up or Down'}
-            </button>
-
-            {/* 最低总交易量筛选 */}
-            <div className="relative min-w-[160px]">
-              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={minVolumeInput}
-                onChange={(e) => { setMinVolumeInput(e.target.value); setPage(1) }}
-                placeholder="最低交易量 如 200K"
-                className={`w-full pl-9 pr-8 py-2.5 text-sm rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  minVolume > 0
-                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                    : 'border-gray-200 bg-white text-gray-700'
+            <div className="flex flex-wrap gap-1.5 md:gap-3">
+              <button
+                onClick={() => { setShowSports(!showSports); setPage(1) }}
+                className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors md:gap-1.5 md:px-4 md:py-2.5 md:text-sm ${
+                  !showSports
+                    ? 'bg-blue-500 border-blue-500 text-white'
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                 }`}
-              />
-              {minVolumeInput && (
-                <button
-                  onClick={() => { setMinVolumeInput(''); setPage(1) }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+              >
+                <Filter className="w-3 h-3 md:w-4 md:h-4" />
+                {!showSports ? '已排除体育赛事' : '排除体育赛事'}
+              </button>
+
+              <button
+                onClick={() => { setShowCrypto(!showCrypto); setPage(1) }}
+                className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors md:gap-1.5 md:px-4 md:py-2.5 md:text-sm ${
+                  !showCrypto
+                    ? 'bg-blue-500 border-blue-500 text-white'
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Filter className="w-3 h-3 md:w-4 md:h-4" />
+                {!showCrypto ? '已排除加密预测' : '排除加密预测'}
+              </button>
+
+              <button
+                onClick={() => { setShowWeather(!showWeather); setPage(1) }}
+                className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors md:gap-1.5 md:px-4 md:py-2.5 md:text-sm ${
+                  !showWeather
+                    ? 'bg-blue-500 border-blue-500 text-white'
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Filter className="w-3 h-3 md:w-4 md:h-4" />
+                {!showWeather ? '已排除天气预测' : '排除天气预测'}
+              </button>
+
+              <button
+                onClick={() => { setShowUpOrDown(!showUpOrDown); setPage(1) }}
+                className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors md:gap-1.5 md:px-4 md:py-2.5 md:text-sm ${
+                  !showUpOrDown
+                    ? 'bg-blue-500 border-blue-500 text-white'
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Filter className="w-3 h-3 md:w-4 md:h-4" />
+                {!showUpOrDown ? '已排除 Up or Down' : '排除 Up or Down'}
+              </button>
+
+              {/* 最低总交易量筛选 */}
+              <div className="relative min-w-[130px] md:min-w-[160px]">
+                <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 md:left-3 md:w-4 md:h-4" />
+                <input
+                  type="text"
+                  value={minVolumeInput}
+                  onChange={(e) => { setMinVolumeInput(e.target.value); setPage(1) }}
+                  placeholder="最低交易量 如 200K"
+                  className={`w-full pl-7 pr-7 py-1.5 text-xs rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent md:pl-9 md:pr-8 md:py-2.5 md:text-sm ${
+                    minVolume > 0
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                      : 'border-gray-200 bg-white text-gray-700'
+                  }`}
+                />
+                {minVolumeInput && (
+                  <button
+                    onClick={() => { setMinVolumeInput(''); setPage(1) }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
         </div>
         
@@ -466,31 +468,33 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
 
       {/* 加载状态 —— 骨架屏 */}
       {loading && (
-        <div className="space-y-4">
+        <div className="space-y-3 md:space-y-4">
           {/* 骨架屏：统计卡片 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+          <div className="grid grid-cols-3 gap-2 md:grid-cols-4 md:gap-4 lg:grid-cols-7">
             {[...Array(7)].map((_, i) => (
-              <div key={i} className="bg-white rounded-lg border border-gray-200 p-4">
-                <div className="h-3 w-16 rounded-md" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: `skeleton-shimmer 1.5s ease-in-out infinite ${i * 0.1}s` }} />
-                <div className="h-7 w-12 rounded-md mt-3" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: `skeleton-shimmer 1.5s ease-in-out infinite ${i * 0.1 + 0.05}s` }} />
+              <div key={i} className={`bg-white rounded-lg border border-gray-200 p-2.5 md:p-4 ${i >= 3 ? 'hidden md:block' : ''} ${i >= 4 ? 'md:hidden lg:block' : ''}`}>
+                <div className="h-3 w-12 rounded-md md:w-16" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: `skeleton-shimmer 1.5s ease-in-out infinite ${i * 0.1}s` }} />
+                <div className="h-5 w-10 rounded-md mt-2 md:h-7 md:w-12 md:mt-3" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: `skeleton-shimmer 1.5s ease-in-out infinite ${i * 0.1 + 0.05}s` }} />
               </div>
             ))}
           </div>
 
           {/* 骨架屏：搜索栏占位 */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex-1 min-w-[240px] h-[42px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0s' }} />
-            <div className="h-[42px] w-[140px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.1s' }} />
-            <div className="h-[42px] w-[140px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.2s' }} />
-            <div className="h-[42px] w-[140px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.3s' }} />
-            <div className="h-[42px] w-[140px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.4s' }} />
-            <div className="h-[42px] w-[160px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.5s' }} />
+          <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:gap-3">
+            <div className="flex-1 min-w-0 h-[38px] rounded-lg md:min-w-[240px] md:h-[42px]" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0s' }} />
+            <div className="flex flex-wrap gap-1.5 md:gap-3">
+              <div className="h-[30px] w-[100px] rounded-lg md:h-[42px] md:w-[140px]" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.1s' }} />
+              <div className="h-[30px] w-[100px] rounded-lg md:h-[42px] md:w-[140px]" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.2s' }} />
+              <div className="h-[30px] w-[100px] rounded-lg md:h-[42px] md:w-[140px]" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.3s' }} />
+              <div className="h-[30px] w-[100px] rounded-lg md:h-[42px] md:w-[140px]" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.4s' }} />
+              <div className="h-[30px] w-[100px] rounded-lg md:h-[42px] md:w-[160px]" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.5s' }} />
+            </div>
           </div>
 
-          {/* 骨架屏：表格 */}
+          {/* 骨架屏：表格（移动端卡片式） */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            {/* 表头 */}
-            <div className="flex items-center gap-4 px-4 py-3 border-b border-gray-100">
+            {/* 表头 - 移动端隐藏 */}
+            <div className="hidden md:flex items-center gap-4 px-4 py-3 border-b border-gray-100">
               <div className="h-3 w-8 rounded" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0s' }} />
               <div className="h-3 flex-1 max-w-[260px] rounded" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.05s' }} />
               <div className="h-3 w-16 rounded" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.1s' }} />
@@ -499,8 +503,8 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
               <div className="h-3 w-20 rounded" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.25s' }} />
               <div className="h-3 w-16 rounded" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.3s' }} />
             </div>
-            {/* 表格行 */}
-            {[...Array(8)].map((_, i) => {
+            {/* 骨架行 */}
+            {[...Array(6)].map((_, i) => {
               const sk = (delay: number) => ({
                 background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)',
                 backgroundSize: '200% 100%',
@@ -508,30 +512,46 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
               })
               const base = i * 0.08
               return (
-                <div key={i} className="flex items-center gap-4 px-4 py-4 border-b border-gray-50">
-                  <div className="h-4 w-6 rounded" style={sk(base)} />
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="w-10 h-10 rounded-lg flex-shrink-0" style={sk(base + 0.02)} />
+                <div key={i} className="px-3 py-3 border-b border-gray-50 md:px-4 md:py-4">
+                  {/* 移动端骨架 */}
+                  <div className="flex items-start gap-2.5 md:hidden">
+                    <div className="w-9 h-9 rounded-lg flex-shrink-0" style={sk(base)} />
                     <div className="flex-1 space-y-2">
-                      <div className="h-3.5 rounded w-3/4" style={sk(base + 0.04)} />
-                      <div className="h-2.5 rounded w-1/2" style={sk(base + 0.06)} />
+                      <div className="h-3.5 rounded w-full" style={sk(base + 0.04)} />
+                      <div className="h-3 rounded w-2/3" style={sk(base + 0.06)} />
+                      <div className="flex gap-3 mt-2">
+                        <div className="h-4 w-14 rounded" style={sk(base + 0.08)} />
+                        <div className="h-4 w-14 rounded" style={sk(base + 0.1)} />
+                        <div className="h-4 w-16 rounded" style={sk(base + 0.12)} />
+                      </div>
                     </div>
                   </div>
-                  <div className="flex flex-col items-center gap-1.5 min-w-[60px]">
-                    <div className="h-4 w-12 rounded" style={sk(base + 0.08)} />
-                    <div className="h-1.5 w-14 rounded-full" style={sk(base + 0.1)} />
-                  </div>
-                  <div className="flex flex-col items-center gap-1.5 min-w-[60px]">
-                    <div className="h-4 w-12 rounded" style={sk(base + 0.12)} />
-                    <div className="h-1.5 w-14 rounded-full" style={sk(base + 0.14)} />
-                  </div>
-                  <div className="h-4 w-16 rounded" style={sk(base + 0.16)} />
-                  <div className="h-4 w-16 rounded" style={sk(base + 0.18)} />
-                  <div className="h-4 w-20 rounded" style={sk(base + 0.2)} />
-                  <div className="h-5 w-10 rounded-full" style={sk(base + 0.22)} />
-                  <div className="flex gap-1">
-                    <div className="h-5 w-10 rounded" style={sk(base + 0.24)} />
-                    <div className="h-5 w-8 rounded" style={sk(base + 0.26)} />
+                  {/* PC 端骨架 */}
+                  <div className="hidden md:flex items-center gap-4">
+                    <div className="h-4 w-6 rounded" style={sk(base)} />
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="w-10 h-10 rounded-lg flex-shrink-0" style={sk(base + 0.02)} />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3.5 rounded w-3/4" style={sk(base + 0.04)} />
+                        <div className="h-2.5 rounded w-1/2" style={sk(base + 0.06)} />
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5 min-w-[60px]">
+                      <div className="h-4 w-12 rounded" style={sk(base + 0.08)} />
+                      <div className="h-1.5 w-14 rounded-full" style={sk(base + 0.1)} />
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5 min-w-[60px]">
+                      <div className="h-4 w-12 rounded" style={sk(base + 0.12)} />
+                      <div className="h-1.5 w-14 rounded-full" style={sk(base + 0.14)} />
+                    </div>
+                    <div className="h-4 w-16 rounded" style={sk(base + 0.16)} />
+                    <div className="h-4 w-16 rounded" style={sk(base + 0.18)} />
+                    <div className="h-4 w-20 rounded" style={sk(base + 0.2)} />
+                    <div className="h-5 w-10 rounded-full" style={sk(base + 0.22)} />
+                    <div className="flex gap-1">
+                      <div className="h-5 w-10 rounded" style={sk(base + 0.24)} />
+                      <div className="h-5 w-8 rounded" style={sk(base + 0.26)} />
+                    </div>
                   </div>
                 </div>
               )
@@ -542,7 +562,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
 
       {/* 错误状态 - 加载时隐藏 */}
       {!loading && error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700 md:p-4 md:text-sm">
           {error}
         </div>
       )}
@@ -551,7 +571,8 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
       {!loading && !error && (
         <>
           <div ref={tableRef} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* PC 端表格 */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
@@ -751,37 +772,173 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
               </table>
             </div>
 
+            {/* 移动端卡片列表 */}
+            <div className="md:hidden divide-y divide-gray-100">
+              {/* 移动端排序栏 */}
+              <div className="flex items-center gap-1 px-3 py-2 bg-gray-50 border-b border-gray-200 overflow-x-auto">
+                <span className="text-xs text-gray-500 flex-shrink-0">排序:</span>
+                {([
+                  { field: 'volume' as const, label: '总交易量' },
+                  { field: 'volume24hr' as const, label: '24h量' },
+                  { field: 'yesPrice' as const, label: 'YES胜率' },
+                  { field: 'endDate' as const, label: '结束日期' },
+                ] as const).map(({ field, label }) => (
+                  <button
+                    key={field}
+                    onClick={() => handleSort(field)}
+                    className={`flex-shrink-0 px-2 py-1 text-xs rounded-md transition-colors ${
+                      sortBy === field
+                        ? 'bg-blue-500 text-white'
+                        : 'text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {label}
+                    {sortBy === field && (
+                      sortAsc ? <TrendingUp className="w-3 h-3 inline ml-0.5" /> : <TrendingDown className="w-3 h-3 inline ml-0.5" />
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {paged.length === 0 ? (
+                <div className="px-3 py-12 text-center text-gray-400 text-sm">
+                  {searchTerm ? '没有找到匹配的市场' : '暂无数据'}
+                </div>
+              ) : (
+                paged.map((m, idx) => {
+                  const yesPrice = m.outcomePrices[0] || 0
+                  const noPrice = m.outcomePrices[1] || 0
+                  const yesPct = (yesPrice * 100).toFixed(1)
+                  const noPct = (noPrice * 100).toFixed(1)
+                  const { days, hours, minutes } = timeRemaining(m.endDate)
+                  const isSports = isSportsEvent(m.tags)
+                  const rowNum = (page - 1) * PAGE_SIZE + idx + 1
+
+                  return (
+                    <a
+                      key={m.id}
+                      href={`https://polymarket.com/event/${m.eventSlug || m.slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block px-3 py-3 active:bg-gray-50 transition-colors"
+                    >
+                      {/* 顶部：图片 + 标题 */}
+                      <div className="flex items-start gap-2.5">
+                        {m.image && (
+                          <img
+                            src={m.image}
+                            alt=""
+                            className="w-9 h-9 rounded-lg object-cover flex-shrink-0 mt-0.5"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug">
+                            <span className="text-xs text-gray-400 mr-1">{rowNum}.</span>
+                            {m.question}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 中部：YES/NO 胜率 + 交易量 */}
+                      <div className="flex items-center gap-3 mt-2 ml-[46px]">
+                        {/* YES */}
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-400">YES</span>
+                          <span className={`text-sm font-semibold tabular-nums ${
+                            yesPrice >= 0.7 ? 'text-emerald-600' :
+                            yesPrice >= 0.4 ? 'text-blue-600' :
+                            'text-gray-600'
+                          }`}>
+                            {yesPct}%
+                          </span>
+                        </div>
+                        {/* NO */}
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-400">NO</span>
+                          <span className={`text-sm font-semibold tabular-nums ${
+                            noPrice >= 0.7 ? 'text-red-500' :
+                            noPrice >= 0.4 ? 'text-blue-600' :
+                            'text-gray-600'
+                          }`}>
+                            {noPct}%
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-300">|</span>
+                        {/* 总交易量 */}
+                        <span className="text-xs text-gray-500 tabular-nums">{formatVolume(m.volume)}</span>
+                        {/* 剩余时间 */}
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+                          isSports ? (
+                            days <= 3 ? 'bg-red-50 text-red-600' :
+                            days <= 7 ? 'bg-orange-50 text-orange-600' :
+                            'bg-gray-100 text-gray-600'
+                          ) : (
+                            hours === 0 ? 'bg-red-100 text-red-700' :
+                            days === 0 ? 'bg-red-100 text-red-700' :
+                            days <= 3 ? 'bg-red-50 text-red-600' :
+                            days <= 7 ? 'bg-orange-50 text-orange-600' :
+                            'bg-gray-100 text-gray-600'
+                          )
+                        }`}>
+                          {isSports
+                            ? `${Math.max(1, days)}天`
+                            : days > 0 ? `${days}天` : hours > 0 ? `${hours}小时` : `${minutes}分钟`
+                          }
+                        </span>
+                      </div>
+
+                      {/* 底部：标签 */}
+                      {m.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5 ml-[46px]">
+                          {m.tags.slice(0, 2).map((t) => (
+                            <span
+                              key={t.id}
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500"
+                            >
+                              {t.label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </a>
+                  )
+                })
+              )}
+            </div>
+
             {/* 分页 */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
-                <div className="text-sm text-gray-500">
+              <div className="flex flex-col gap-2 px-3 py-2.5 border-t border-gray-200 bg-gray-50 md:flex-row md:items-center md:justify-between md:px-4 md:py-3">
+                <div className="text-xs text-gray-500 text-center md:text-sm md:text-left">
                   共 {sorted.length} 个市场，第 {page}/{totalPages} 页
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center gap-1 md:gap-2">
                   <button
                     onClick={() => { setPage(Math.max(1, page - 1)); scrollToTable() }}
                     disabled={page <= 1}
-                    className="p-1.5 rounded-lg border border-gray-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="p-1 rounded-lg border border-gray-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors md:p-1.5"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  {/* 页码按钮 */}
-                  {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
+                  {/* 页码按钮 - 移动端显示更少 */}
+                  {Array.from({ length: Math.min(typeof window !== 'undefined' && window.innerWidth < 768 ? 5 : 7, totalPages) }, (_, i) => {
+                    const maxShow = typeof window !== 'undefined' && window.innerWidth < 768 ? 5 : 7
                     let pageNum: number
-                    if (totalPages <= 7) {
+                    if (totalPages <= maxShow) {
                       pageNum = i + 1
-                    } else if (page <= 4) {
+                    } else if (page <= Math.ceil(maxShow / 2)) {
                       pageNum = i + 1
-                    } else if (page >= totalPages - 3) {
-                      pageNum = totalPages - 6 + i
+                    } else if (page >= totalPages - Math.floor(maxShow / 2)) {
+                      pageNum = totalPages - maxShow + 1 + i
                     } else {
-                      pageNum = page - 3 + i
+                      pageNum = page - Math.floor(maxShow / 2) + i
                     }
                     return (
                       <button
                         key={pageNum}
                         onClick={() => { setPage(pageNum); scrollToTable() }}
-                        className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                        className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors md:w-8 md:h-8 md:text-sm ${
                           page === pageNum
                             ? 'bg-blue-500 text-white'
                             : 'text-gray-600 hover:bg-gray-200'
@@ -794,7 +951,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                   <button
                     onClick={() => { setPage(Math.min(totalPages, page + 1)); scrollToTable() }}
                     disabled={page >= totalPages}
-                    className="p-1.5 rounded-lg border border-gray-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="p-1 rounded-lg border border-gray-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors md:p-1.5"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>

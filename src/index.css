@@ -100,3 +100,15 @@ table {
 th, td {
   white-space: nowrap;
 }
+
+/* 移动端优化 */
+@media (max-width: 767px) {
+  /* 防止 iOS 输入框聚焦时自动缩放 */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+  /* 触摸滑动优化 */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}

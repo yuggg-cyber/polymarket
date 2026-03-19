@@ -10,6 +10,7 @@ import {
   Calendar,
   Filter,
   X,
+  DollarSign,
 } from 'lucide-react'
 
 /* ============ 类型定义 ============ */
@@ -139,6 +140,61 @@ function isCryptoPriceEvent(tags: MarketTag[], question: string): boolean {
   return false
 }
 
+/** 天气预测相关 tag slug */
+const WEATHER_SLUGS = new Set([
+  'weather', 'temperature', 'climate', 'hurricane', 'tornado', 'storm',
+  'rainfall', 'snowfall', 'weather-forecast', 'natural-disasters',
+])
+
+/** 天气预测关键词（市场标题匹配） */
+const WEATHER_KEYWORDS = [
+  'temperature', 'degrees', 'fahrenheit', 'celsius',
+  'hurricane', 'tornado', 'storm', 'rainfall', 'snowfall',
+  'weather', 'hottest', 'coldest', 'heat wave', 'heatwave',
+  'wind speed', 'flood', 'drought', 'wildfire',
+  'category 1', 'category 2', 'category 3', 'category 4', 'category 5',
+  'tropical storm', 'tropical depression',
+  'high temperature', 'low temperature', 'record temperature',
+  'above normal', 'below normal',
+  'warmest', 'coolest',
+]
+
+function isWeatherEvent(tags: MarketTag[], question: string): boolean {
+  // 通过 tag 判断
+  if (tags.some((t) => WEATHER_SLUGS.has(t.slug?.toLowerCase() || ''))) return true
+  // 通过市场标题关键词判断
+  const q = question.toLowerCase()
+  if (WEATHER_KEYWORDS.some((kw) => q.includes(kw))) return true
+  return false
+}
+
+/** Up or Down 预测关键词（市场标题匹配） */
+const UP_OR_DOWN_KEYWORDS = [
+  'up or down',
+  'go up or down',
+  'higher or lower',
+  'rise or fall',
+  'increase or decrease',
+]
+
+function isUpOrDownEvent(question: string): boolean {
+  const q = question.toLowerCase()
+  return UP_OR_DOWN_KEYWORDS.some((kw) => q.includes(kw))
+}
+
+/** 解析用户输入的最低交易量字符串为数字（支持 K/M 后缀） */
+function parseVolumeInput(input: string): number {
+  if (!input.trim()) return 0
+  const cleaned = input.trim().toUpperCase().replace(/[$,\s]/g, '')
+  const match = cleaned.match(/^(\d+(?:\.\d+)?)\s*(K|M)?$/)
+  if (!match) return 0
+  const num = parseFloat(match[1])
+  const suffix = match[2]
+  if (suffix === 'M') return num * 1_000_000
+  if (suffix === 'K') return num * 1_000
+  return num
+}
+
 /* ============ 解析函数（供外部使用） ============ */
 
 /** 获取本月最后一天 */
@@ -205,8 +261,13 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
   const [page, setPage] = useState(1)
   const [showSports, setShowSports] = useState(false)
   const [showCrypto, setShowCrypto] = useState(false)
+  const [showWeather, setShowWeather] = useState(true)
+  const [showUpOrDown, setShowUpOrDown] = useState(true)
+  const [minVolumeInput, setMinVolumeInput] = useState('')
 
   const PAGE_SIZE = 30
+
+  const minVolume = parseVolumeInput(minVolumeInput)
 
   /* ============ 过滤和排序 ============ */
 
@@ -215,6 +276,12 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
     if (!showSports && isSportsEvent(m.tags)) return false
     // 加密价格预测过滤
     if (!showCrypto && isCryptoPriceEvent(m.tags, m.question)) return false
+    // 天气预测过滤
+    if (!showWeather && isWeatherEvent(m.tags, m.question)) return false
+    // Up or Down 过滤
+    if (!showUpOrDown && isUpOrDownEvent(m.question)) return false
+    // 最低总交易量过滤
+    if (minVolume > 0 && m.volume < minVolume) return false
     // 搜索过滤
     if (searchTerm) {
       const term = searchTerm.toLowerCase()
@@ -272,6 +339,8 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
 
   const sportsCount = markets.filter((m) => isSportsEvent(m.tags)).length
   const cryptoCount = markets.filter((m) => isCryptoPriceEvent(m.tags, m.question)).length
+  const weatherCount = markets.filter((m) => isWeatherEvent(m.tags, m.question)).length
+  const upOrDownCount = markets.filter((m) => isUpOrDownEvent(m.question)).length
   const nonSportsCount = markets.length - sportsCount
 
   return (
@@ -291,7 +360,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
         </div>
 
         {/* 统计卡片 */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <div className="text-sm text-gray-500">总市场数</div>
               <div className="text-2xl font-bold text-gray-900 mt-1">{markets.length}</div>
@@ -307,6 +376,14 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <div className="text-sm text-gray-500">加密预测</div>
               <div className="text-2xl font-bold text-purple-600 mt-1">{cryptoCount}</div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500">天气预测</div>
+              <div className="text-2xl font-bold text-sky-600 mt-1">{weatherCount}</div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500">Up or Down</div>
+              <div className="text-2xl font-bold text-amber-600 mt-1">{upOrDownCount}</div>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <div className="text-sm text-gray-500">当前显示</div>
@@ -358,7 +435,55 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
             >
               <Filter className="w-4 h-4" />
               {showCrypto ? '显示全部（含加密预测）' : '已排除加密预测'}
-          </button>
+            </button>
+
+            <button
+              onClick={() => { setShowWeather(!showWeather); setPage(1) }}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
+                !showWeather
+                  ? 'bg-sky-50 border-sky-200 text-sky-700'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Filter className="w-4 h-4" />
+              {!showWeather ? '已排除天气预测' : '排除天气预测'}
+            </button>
+
+            <button
+              onClick={() => { setShowUpOrDown(!showUpOrDown); setPage(1) }}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
+                !showUpOrDown
+                  ? 'bg-amber-50 border-amber-200 text-amber-700'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Filter className="w-4 h-4" />
+              {!showUpOrDown ? '已排除 Up or Down' : '排除 Up or Down'}
+            </button>
+
+            {/* 最低总交易量筛选 */}
+            <div className="relative min-w-[160px]">
+              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={minVolumeInput}
+                onChange={(e) => { setMinVolumeInput(e.target.value); setPage(1) }}
+                placeholder="最低交易量 如 200K"
+                className={`w-full pl-9 pr-8 py-2.5 text-sm rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  minVolume > 0
+                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                    : 'border-gray-200 bg-white text-gray-700'
+                }`}
+              />
+              {minVolumeInput && (
+                <button
+                  onClick={() => { setMinVolumeInput(''); setPage(1) }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
         </div>
         
       </div>
@@ -368,8 +493,8 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
       {loading && (
         <div className="space-y-4">
           {/* 骨架屏：统计卡片 */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {[...Array(5)].map((_, i) => (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            {[...Array(7)].map((_, i) => (
               <div key={i} className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="h-3 w-16 rounded-md" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: `skeleton-shimmer 1.5s ease-in-out infinite ${i * 0.1}s` }} />
                 <div className="h-7 w-12 rounded-md mt-3" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: `skeleton-shimmer 1.5s ease-in-out infinite ${i * 0.1 + 0.05}s` }} />
@@ -380,8 +505,11 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
           {/* 骨架屏：搜索栏占位 */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex-1 min-w-[240px] h-[42px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0s' }} />
-            <div className="h-[42px] w-[160px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.1s' }} />
-            <div className="h-[42px] w-[160px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.2s' }} />
+            <div className="h-[42px] w-[140px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.1s' }} />
+            <div className="h-[42px] w-[140px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.2s' }} />
+            <div className="h-[42px] w-[140px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.3s' }} />
+            <div className="h-[42px] w-[140px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.4s' }} />
+            <div className="h-[42px] w-[160px] rounded-lg" style={{ background: 'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)', backgroundSize: '200% 100%', animation: 'skeleton-shimmer 1.5s ease-in-out infinite 0.5s' }} />
           </div>
 
           {/* 骨架屏：表格 */}

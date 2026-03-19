@@ -250,11 +250,12 @@ export function parseEventsToMarkets(events: EventData[]): MarketItem[] {
 interface MarketBrowserProps {
   markets: MarketItem[]
   loading: boolean
+  streaming?: boolean
   error: string | null
   onRefresh: () => void
 }
 
-export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrowserProps) {
+export function MarketBrowser({ markets, loading, streaming = false, error, onRefresh }: MarketBrowserProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<'endDate' | 'volume' | 'volume24hr' | 'yesPrice'>('volume')
   const [sortAsc, setSortAsc] = useState(false)
@@ -345,10 +346,16 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
 
   return (
     <div className="max-w-[1800px] mx-auto px-6 py-8">
-      {/* 标题和统计 - 加载时隐藏 */}
-      {!loading && (
+      {/* 标题和统计 - 初始加载时隐藏，流式加载时显示 */}
+      {(!loading || streaming) && (
       <div className="mb-6">
-        <div className="flex items-center justify-end mb-4">
+        <div className="flex items-center justify-end gap-3 mb-4">
+          {streaming && (
+            <div className="flex items-center gap-2 text-sm text-blue-600">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <span>数据加载中... 已加载 {markets.length} 个市场</span>
+            </div>
+          )}
           <button
             onClick={onRefresh}
             disabled={loading}
@@ -489,8 +496,8 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
       </div>
       )}
 
-      {/* 加载状态 —— 骨架屏 */}
-      {loading && (
+      {/* 加载状态 —— 骨架屏（仅初始加载时显示，流式加载时不显示） */}
+      {loading && !streaming && (
         <div className="space-y-4">
           {/* 骨架屏：统计卡片 */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
@@ -566,14 +573,14 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
       )}
 
       {/* 错误状态 - 加载时隐藏 */}
-      {!loading && error && (
+      {!loading && !streaming && error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {/* 市场表格 */}
-      {!loading && !error && (
+      {(!loading || streaming) && !error && (
         <>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">

@@ -126,18 +126,21 @@ function App() {
   // ====== 市场浏览数据（提升到 App 层级，避免切换页面时重新加载） ======
   const [marketData, setMarketData] = useState<MarketItem[]>([])
   const [marketLoading, setMarketLoading] = useState(false)
+  const [marketStreaming, setMarketStreaming] = useState(false)
   const [marketError, setMarketError] = useState<string | null>(null)
   const marketAbortRef = useRef<AbortController | null>(null)
   const marketDataLoaded = useRef(false)
 
-  /** 获取市场数据 */
+  /** 获取市场数据（流式 NDJSON 解析 + 增量渲染） */
   const fetchMarketData = useCallback(async () => {
     if (marketAbortRef.current) marketAbortRef.current.abort()
     const controller = new AbortController()
     marketAbortRef.current = controller
 
     setMarketLoading(true)
+    setMarketStreaming(false)
     setMarketError(null)
+    setMarketData([])
 
     const now = new Date()
     const endMax = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
@@ -148,16 +151,87 @@ function App() {
       const resp = await fetch(url, { signal: controller.signal })
       if (!resp.ok) throw new Error(`API 请求失败: ${resp.status}`)
 
-      const events: EventData[] = await resp.json()
-      const allMarkets = parseEventsToMarkets(events)
+      const contentType = resp.headers.get('content-type') || ''
 
-      setMarketData(allMarkets)
-      marketDataLoaded.current = true
+      if (contentType.includes('application/x-ndjson')) {
+        // 流式 NDJSON 解析：边接收边渲染
+        const reader = resp.body?.getReader()
+        if (!reader) throw new Error('无法读取响应流')
+
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let pendingEvents: EventData[] = []
+        let allMarkets: MarketItem[] = []
+        let lastFlush = Date.now()
+        const FLUSH_INTERVAL = 300 // 每 300ms 刷新一次 UI
+
+        const flushPending = () => {
+          if (pendingEvents.length === 0) return
+          const newMarkets = parseEventsToMarkets(pendingEvents)
+          allMarkets = [...allMarkets, ...newMarkets]
+          setMarketData([...allMarkets])
+          pendingEvents = []
+          lastFlush = Date.now()
+        }
+
+          // 第一批数据到达后切换到流式加载状态
+        let firstBatchReceived = false
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || '' // 最后一个可能不完整
+
+          for (const line of lines) {
+            const trimmed = line.trim()
+            if (!trimmed) continue
+            try {
+              const event = JSON.parse(trimmed) as EventData
+              pendingEvents.push(event)
+            } catch {
+              // 跳过解析失败的行
+            }
+          }
+
+          // 第一批数据到达后立即刷新，切换到流式加载状态
+          if (!firstBatchReceived && pendingEvents.length > 0) {
+            flushPending()
+            firstBatchReceived = true
+            setMarketLoading(false)
+            setMarketStreaming(true)
+          } else if (Date.now() - lastFlush >= FLUSH_INTERVAL) {
+            flushPending()
+          }
+        }
+
+        // 处理 buffer 中剩余的数据
+        if (buffer.trim()) {
+          try {
+            const event = JSON.parse(buffer.trim()) as EventData
+            pendingEvents.push(event)
+          } catch { /* ignore */ }
+        }
+
+        // 最终刷新
+        flushPending()
+        setMarketStreaming(false)
+        marketDataLoaded.current = true
+      } else {
+        // 兼容旧的 JSON 数组响应格式
+        const events: EventData[] = await resp.json()
+        const allMarkets = parseEventsToMarkets(events)
+        setMarketData(allMarkets)
+        marketDataLoaded.current = true
+      }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return
       setMarketError(err instanceof Error ? err.message : '加载失败')
     } finally {
       setMarketLoading(false)
+      setMarketStreaming(false)
     }
   }, [])
 
@@ -674,6 +748,7 @@ function App() {
         <MarketBrowser
           markets={marketData}
           loading={marketLoading}
+          streaming={marketStreaming}
           error={marketError}
           onRefresh={fetchMarketData}
         />

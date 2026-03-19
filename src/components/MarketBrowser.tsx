@@ -96,10 +96,12 @@ function formatDate(iso: string): string {
   }
 }
 
-function daysUntil(iso: string): number {
+function timeRemaining(iso: string): { days: number; hours: number } {
   const now = new Date()
   const end = new Date(iso)
-  return Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000))
+  const diffMs = Math.max(0, end.getTime() - now.getTime())
+  const totalHours = diffMs / 3600000
+  return { days: Math.ceil(diffMs / 86400000), hours: Math.max(1, Math.floor(totalHours)) }
 }
 
 /** 体育相关 tag slug 黑名单 */
@@ -598,7 +600,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                       const noPrice = m.outcomePrices[1] || 0
                       const yesPct = (yesPrice * 100).toFixed(1)
                       const noPct = (noPrice * 100).toFixed(1)
-                      const days = daysUntil(m.endDate)
+                      const { days, hours } = timeRemaining(m.endDate)
                       const rowNum = (page - 1) * PAGE_SIZE + idx + 1
 
                       return (
@@ -698,14 +700,15 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                             </div>
                           </td>
 
-                          {/* 剩余天数 */}
+                          {/* 剩余时间 */}
                           <td className="px-4 py-3.5 text-center">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              days === 0 ? 'bg-red-100 text-red-700' :
                               days <= 3 ? 'bg-red-50 text-red-600' :
                               days <= 7 ? 'bg-orange-50 text-orange-600' :
                               'bg-gray-100 text-gray-600'
                             }`}>
-                              {days}天
+                              {days === 0 ? `${hours}小时` : `${days}天`}
                             </span>
                           </td>
 

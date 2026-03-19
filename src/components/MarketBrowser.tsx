@@ -685,16 +685,16 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1100px' }}>
                 <colgroup>
-                  <col style={{ width: '40px' }} />
-                  <col style={{ width: '40px' }} />
-                  <col style={{ width: '28%' }} />
-                  <col style={{ width: '80px' }} />
-                  <col style={{ width: '80px' }} />
-                  <col style={{ width: '88px' }} />
-                  <col style={{ width: '88px' }} />
-                  <col style={{ width: '100px' }} />
-                  <col style={{ width: '68px' }} />
+                  <col style={{ width: '36px' }} />
+                  <col style={{ width: '36px' }} />
                   <col />
+                  <col style={{ width: '76px' }} />
+                  <col style={{ width: '76px' }} />
+                  <col style={{ width: '84px' }} />
+                  <col style={{ width: '84px' }} />
+                  <col style={{ width: '98px' }} />
+                  <col style={{ width: '62px' }} />
+                  <col style={{ width: '14%' }} />
                 </colgroup>
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">

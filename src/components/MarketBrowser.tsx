@@ -96,13 +96,14 @@ function formatDate(iso: string): string {
   }
 }
 
-function timeRemaining(iso: string): { days: number; hours: number } {
+function timeRemaining(iso: string): { days: number; hours: number; minutes: number } {
   const now = new Date()
   const end = new Date(iso)
   const diffMs = Math.max(0, end.getTime() - now.getTime())
-  const totalHours = Math.floor(diffMs / 3600000)
   const days = Math.floor(diffMs / 86400000)
-  return { days, hours: Math.max(1, totalHours) }
+  const hours = Math.floor(diffMs / 3600000)
+  const minutes = Math.max(1, Math.floor(diffMs / 60000))
+  return { days, hours, minutes }
 }
 
 /** 体育相关 tag slug 黑名单 */
@@ -601,7 +602,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                       const noPrice = m.outcomePrices[1] || 0
                       const yesPct = (yesPrice * 100).toFixed(1)
                       const noPct = (noPrice * 100).toFixed(1)
-                      const { days, hours } = timeRemaining(m.endDate)
+                      const { days, hours, minutes } = timeRemaining(m.endDate)
                       const rowNum = (page - 1) * PAGE_SIZE + idx + 1
 
                       return (
@@ -704,12 +705,13 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                           {/* 剩余时间 */}
                           <td className="px-4 py-3.5 text-center">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              hours === 0 ? 'bg-red-100 text-red-700' :
                               days === 0 ? 'bg-red-100 text-red-700' :
                               days <= 3 ? 'bg-red-50 text-red-600' :
                               days <= 7 ? 'bg-orange-50 text-orange-600' :
                               'bg-gray-100 text-gray-600'
                             }`}>
-                              {days === 0 ? `${hours}小时` : `${days}天`}
+                              {days > 0 ? `${days}天` : hours > 0 ? `${hours}小时` : `${minutes}分钟`}
                             </span>
                           </td>
 

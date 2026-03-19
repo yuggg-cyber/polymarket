@@ -221,22 +221,23 @@ export function SnapshotRecorder({ results, isLoading }: SnapshotRecorderProps) 
     })
   }, [])
 
-  const DiffIcon = ({ icon }: { icon: 'up' | 'down' | 'same' }) => {
-    if (icon === 'up') return <TrendingUp className="w-3 h-3" />
-    if (icon === 'down') return <TrendingDown className="w-3 h-3" />
-    return <Minus className="w-3 h-3" />
+  const DiffIcon = ({ icon, size = 'md' }: { icon: 'up' | 'down' | 'same'; size?: 'sm' | 'md' }) => {
+    const cls = size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4'
+    if (icon === 'up') return <TrendingUp className={cls} />
+    if (icon === 'down') return <TrendingDown className={cls} />
+    return <Minus className={cls} />
   }
 
   // 渲染对比行
   const renderCompareRow = (label: string, current: number, previous: number) => {
     const diff = formatDiff(current, previous)
     return (
-      <div key={label} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
-        <span className="text-xs text-gray-500">{label}</span>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-gray-700">{formatUSD(current)}</span>
-          <span className={`inline-flex items-center gap-0.5 text-[11px] font-medium ${diff.color}`}>
-            <DiffIcon icon={diff.icon} />
+      <div key={label} className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
+        <span className="text-sm text-gray-500">{label}</span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-sm font-semibold text-gray-800">{formatUSD(current)}</span>
+          <span className={`inline-flex items-center gap-1 text-xs font-semibold ${diff.color}`}>
+            <DiffIcon icon={diff.icon} size="sm" />
             {diff.text}
           </span>
         </div>
@@ -247,43 +248,43 @@ export function SnapshotRecorder({ results, isLoading }: SnapshotRecorderProps) 
   const hasData = currentCardData !== null && !isLoading
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* 当前数据预览 */}
-      <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-        <div className="text-xs font-medium text-gray-600 mb-2">当前卡片数据预览</div>
+      <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
+        <div className="text-sm font-semibold text-gray-700 mb-3">当前卡片数据预览</div>
         {!hasData ? (
-          <div className="text-xs text-gray-400 py-4 text-center">
+          <div className="text-sm text-gray-400 py-6 text-center">
             {isLoading ? '数据加载中...' : '暂无查询数据，请先查询钱包地址'}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
-            <div className="bg-white rounded-md px-2.5 py-2 border border-gray-100">
-              <div className="text-[10px] text-gray-400">净资产总计</div>
-              <div className="text-sm font-bold text-gray-900">{formatUSD(currentCardData.netWorth)}</div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white rounded-lg px-3.5 py-3 border border-gray-100 shadow-sm">
+              <div className="text-xs text-gray-400 mb-1">净资产总计</div>
+              <div className="text-lg font-bold text-gray-900">{formatUSD(currentCardData.netWorth)}</div>
             </div>
-            <div className="bg-white rounded-md px-2.5 py-2 border border-gray-100">
-              <div className="text-[10px] text-gray-400">可用余额</div>
-              <div className="text-sm font-bold text-gray-900">{formatUSD(currentCardData.availableBalance)}</div>
+            <div className="bg-white rounded-lg px-3.5 py-3 border border-gray-100 shadow-sm">
+              <div className="text-xs text-gray-400 mb-1">可用余额</div>
+              <div className="text-lg font-bold text-gray-900">{formatUSD(currentCardData.availableBalance)}</div>
             </div>
-            <div className="bg-white rounded-md px-2.5 py-2 border border-gray-100">
-              <div className="text-[10px] text-gray-400">持仓估值</div>
-              <div className="text-sm font-bold text-gray-900">{formatUSD(currentCardData.portfolioValue)}</div>
+            <div className="bg-white rounded-lg px-3.5 py-3 border border-gray-100 shadow-sm">
+              <div className="text-xs text-gray-400 mb-1">持仓估值</div>
+              <div className="text-lg font-bold text-gray-900">{formatUSD(currentCardData.portfolioValue)}</div>
             </div>
-            <div className="bg-white rounded-md px-2.5 py-2 border border-gray-100">
-              <div className="text-[10px] text-gray-400">持仓盈亏</div>
-              <div className={`text-sm font-bold ${currentCardData.holdingPnl >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+            <div className="bg-white rounded-lg px-3.5 py-3 border border-gray-100 shadow-sm">
+              <div className="text-xs text-gray-400 mb-1">持仓盈亏</div>
+              <div className={`text-lg font-bold ${currentCardData.holdingPnl >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                 {currentCardData.holdingPnl >= 0 ? '+' : ''}{formatUSD(currentCardData.holdingPnl)}
               </div>
             </div>
-            <div className="bg-white rounded-md px-2.5 py-2 border border-gray-100">
-              <div className="text-[10px] text-gray-400">总盈亏</div>
-              <div className={`text-sm font-bold ${currentCardData.totalProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+            <div className="bg-white rounded-lg px-3.5 py-3 border border-gray-100 shadow-sm">
+              <div className="text-xs text-gray-400 mb-1">总盈亏</div>
+              <div className={`text-lg font-bold ${currentCardData.totalProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                 {currentCardData.totalProfit >= 0 ? '+' : ''}{formatUSD(currentCardData.totalProfit)}
               </div>
             </div>
-            <div className="bg-white rounded-md px-2.5 py-2 border border-gray-100">
-              <div className="text-[10px] text-gray-400">可赎回总额</div>
-              <div className="text-sm font-bold text-amber-600">
+            <div className="bg-white rounded-lg px-3.5 py-3 border border-gray-100 shadow-sm">
+              <div className="text-xs text-gray-400 mb-1">可赎回总额</div>
+              <div className="text-lg font-bold text-amber-600">
                 {currentCardData.redeemableCount > 0
                   ? formatUSD(currentCardData.redeemableTotal)
                   : '-'}
@@ -296,26 +297,26 @@ export function SnapshotRecorder({ results, isLoading }: SnapshotRecorderProps) 
         <button
           onClick={handleRecord}
           disabled={!hasData}
-          className="mt-3 w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+          className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 text-base font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-5 h-5" />
           确认记录
         </button>
-        <div className="text-[10px] text-gray-400 text-center mt-1.5">
+        <div className="text-xs text-gray-400 text-center mt-2">
           点击后将记录当前6个卡片的数据快照（含 {currentCardData?.addressCount || 0} 个地址）
         </div>
       </div>
 
       {/* 历史记录列表 */}
       <div>
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-xs font-medium text-gray-600">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm font-semibold text-gray-700">
             历史记录 ({records.length})
           </div>
           {records.length > 0 && (
             <button
               onClick={() => setShowClearConfirm(true)}
-              className="text-[11px] text-red-400 hover:text-red-600 transition-colors"
+              className="text-xs text-red-400 hover:text-red-600 transition-colors font-medium"
             >
               清空全部
             </button>
@@ -323,11 +324,11 @@ export function SnapshotRecorder({ results, isLoading }: SnapshotRecorderProps) 
         </div>
 
         {records.length === 0 ? (
-          <div className="text-xs text-gray-400 py-6 text-center bg-gray-50 rounded-lg border border-dashed border-gray-200">
-            暂无记录，点击"确认记录"保存当前数据快照
+          <div className="text-sm text-gray-400 py-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+            暂无记录，点击「确认记录」保存当前数据快照
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {records.map((record, idx) => {
               const prevRecord = idx < records.length - 1 ? records[idx + 1] : null
               const isExpanded = expandedRecords.has(record.id)
@@ -335,56 +336,56 @@ export function SnapshotRecorder({ results, isLoading }: SnapshotRecorderProps) 
               return (
                 <div
                   key={record.id}
-                  className="bg-white rounded-lg border border-gray-200 overflow-hidden"
+                  className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm"
                 >
                   {/* 记录头部 */}
                   <div
-                    className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-gray-50/50 transition-colors"
+                    className="flex items-center justify-between px-4 py-3.5 cursor-pointer hover:bg-gray-50/50 transition-colors"
                     onClick={() => toggleExpand(record.id)}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <button className="p-0.5 flex-shrink-0">
                         {isExpanded
-                          ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-                          : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
+                          ? <ChevronDown className="w-5 h-5 text-gray-400" />
+                          : <ChevronRight className="w-5 h-5 text-gray-400" />}
                       </button>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-medium text-gray-400">#{records.length - idx}</span>
-                          <span className="text-sm font-bold text-gray-900">{formatUSD(record.netWorth)}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-gray-400">#{records.length - idx}</span>
+                          <span className="text-base font-bold text-gray-900">{formatUSD(record.netWorth)}</span>
                           {prevRecord && (
                             (() => {
                               const diff = formatDiff(record.netWorth, prevRecord.netWorth)
                               return (
-                                <span className={`inline-flex items-center gap-0.5 text-[11px] font-medium ${diff.color}`}>
-                                  <DiffIcon icon={diff.icon} />
+                                <span className={`inline-flex items-center gap-1 text-xs font-semibold ${diff.color}`}>
+                                  <DiffIcon icon={diff.icon} size="sm" />
                                   {diff.text}
                                 </span>
                               )
                             })()
                           )}
                         </div>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <Clock className="w-3 h-3 text-gray-300" />
-                          <span className="text-[10px] text-gray-400">{record.timeStr}</span>
-                          <span className="text-[10px] text-gray-300">({formatRelativeTime(record.timestamp)})</span>
-                          <span className="text-[10px] text-gray-300">| {record.addressCount}个地址</span>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <Clock className="w-3.5 h-3.5 text-gray-300" />
+                          <span className="text-xs text-gray-400">{record.timeStr}</span>
+                          <span className="text-xs text-gray-300">({formatRelativeTime(record.timestamp)})</span>
+                          <span className="text-xs text-gray-300">| {record.addressCount}个地址</span>
                         </div>
                       </div>
                     </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDelete(record.id) }}
-                      className="p-1 rounded hover:bg-red-50 transition-colors flex-shrink-0"
+                      className="p-1.5 rounded-lg hover:bg-red-50 transition-colors flex-shrink-0"
                       title="删除此记录"
                     >
-                      <Trash2 className="w-3.5 h-3.5 text-gray-300 hover:text-red-500" />
+                      <Trash2 className="w-4 h-4 text-gray-300 hover:text-red-500" />
                     </button>
                   </div>
 
                   {/* 展开的详情 */}
                   {isExpanded && (
-                    <div className="px-3 pb-3 border-t border-gray-100">
-                      <div className="pt-2 space-y-0.5">
+                    <div className="px-4 pb-4 border-t border-gray-100">
+                      <div className="pt-3 space-y-0.5">
                         {/* 6个卡片数据对比 */}
                         {renderCompareRow('净资产总计', record.netWorth, prevRecord?.netWorth ?? record.netWorth)}
                         {renderCompareRow('可用余额', record.availableBalance, prevRecord?.availableBalance ?? record.availableBalance)}
@@ -394,19 +395,19 @@ export function SnapshotRecorder({ results, isLoading }: SnapshotRecorderProps) 
                         {record.redeemableCount > 0 || (prevRecord && prevRecord.redeemableCount > 0) ? (
                           renderCompareRow('可赎回总额', record.redeemableTotal, prevRecord?.redeemableTotal ?? record.redeemableTotal)
                         ) : (
-                          <div className="flex items-center justify-between py-1.5">
-                            <span className="text-xs text-gray-500">可赎回总额</span>
-                            <span className="text-xs text-gray-400">-</span>
+                          <div className="flex items-center justify-between py-2.5">
+                            <span className="text-sm text-gray-500">可赎回总额</span>
+                            <span className="text-sm text-gray-400">-</span>
                           </div>
                         )}
                       </div>
                       {!prevRecord && (
-                        <div className="mt-2 text-[10px] text-gray-400 text-center">
+                        <div className="mt-3 text-xs text-gray-400 text-center">
                           首次记录，无对比数据
                         </div>
                       )}
                       {prevRecord && (
-                        <div className="mt-2 text-[10px] text-gray-400 text-center">
+                        <div className="mt-3 text-xs text-gray-400 text-center">
                           对比上次记录: {prevRecord.timeStr}
                         </div>
                       )}

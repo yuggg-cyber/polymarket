@@ -602,14 +602,6 @@ function App() {
                 市场浏览
               </button>
             </div>
-            {pageMode === 'wallet' && (
-              <button
-                onClick={() => setSnapshotDrawerOpen(true)}
-                className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors md:px-4 md:py-2 md:text-sm"
-              >
-                记录
-              </button>
-            )}
             <button
               onClick={() => setExtractDrawerOpen(true)}
               className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors md:px-4 md:py-2 md:text-sm"
@@ -691,6 +683,7 @@ function App() {
                 onDeleteAddress={handleDeleteAddress}
                 isMemoTab={activeTab === 'memo'}
                 memoSavedTime={memoSavedTime}
+                onOpenSnapshot={() => setSnapshotDrawerOpen(true)}
               />
             </div>
           )}

@@ -12,7 +12,10 @@ import {
   X,
   DollarSign,
   Star,
+  ArrowLeft,
+  Trash2,
 } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 /* ============ 类型定义 ============ */
 
@@ -285,6 +288,8 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
     onUIStateChange({ ...uiState, ...partial })
   }, [uiState, onUIStateChange])
 
+  const [showClearFavConfirm, setShowClearFavConfirm] = useState(false)
+
   // 收藏切换
   const toggleFavorite = useCallback((marketId: string, e?: React.MouseEvent) => {
     if (e) {
@@ -302,6 +307,14 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
       return next
     })
   }, [])
+
+  // 清空所有收藏
+  const clearAllFavorites = useCallback(() => {
+    setFavorites(new Set())
+    saveFavorites(new Set())
+    updateUI({ showFavoritesOnly: false, page: 1 })
+    setShowClearFavConfirm(false)
+  }, [updateUI])
 
   const PAGE_SIZE = 30
 
@@ -393,17 +406,34 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
       <div className="mb-4 md:mb-6">
         <div className="flex items-center justify-end gap-2 mb-3 md:mb-4">
           {/* 收藏筛选按钮 */}
-          <button
-            onClick={() => updateUI({ showFavoritesOnly: !showFavoritesOnly, page: 1 })}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors md:gap-2 md:px-4 md:py-2 md:text-sm ${
-              showFavoritesOnly
-                ? 'bg-amber-500 border-amber-500 text-white'
-                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <Star className={`w-3.5 h-3.5 md:w-4 md:h-4 ${showFavoritesOnly ? 'fill-current' : ''}`} />
-            {showFavoritesOnly ? `已收藏 (${favoritesCount})` : `收藏 (${favoritesCount})`}
-          </button>
+          {showFavoritesOnly ? (
+            <>
+              <button
+                onClick={() => updateUI({ showFavoritesOnly: false, page: 1 })}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors bg-amber-500 border-amber-500 text-white md:gap-2 md:px-4 md:py-2 md:text-sm"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                返回市场
+              </button>
+              {favoritesCount > 0 && (
+                <button
+                  onClick={() => setShowClearFavConfirm(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 text-red-500 bg-white hover:bg-red-50 transition-colors md:gap-2 md:px-4 md:py-2 md:text-sm"
+                >
+                  <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                  清空收藏
+                </button>
+              )}
+            </>
+          ) : (
+            <button
+              onClick={() => updateUI({ showFavoritesOnly: true, page: 1 })}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors bg-white border-gray-200 text-gray-600 hover:bg-gray-50 md:gap-2 md:px-4 md:py-2 md:text-sm"
+            >
+              <Star className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              收藏 ({favoritesCount})
+            </button>
+          )}
           <button
             onClick={onRefresh}
             disabled={loading}
@@ -1062,6 +1092,17 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
           </div>
         </>
       )}
+      {/* 清空收藏确认弹窗 */}
+      <ConfirmDialog
+        open={showClearFavConfirm}
+        title="清空收藏"
+        message={`确定要清空所有 ${favoritesCount} 个收藏吗？该操作不可恢复。`}
+        confirmText="确认清空"
+        cancelText="取消"
+        variant="danger"
+        onConfirm={clearAllFavorites}
+        onCancel={() => setShowClearFavConfirm(false)}
+      />
     </div>
   )
 }

@@ -23,6 +23,7 @@ import {
   TrendingUp,
   Gift,
   Settings2,
+  ClipboardList,
 } from 'lucide-react'
 import type { WalletData, Position, ClosedPosition, SortField, SortDirection } from '@/types'
 import { exportToExcel, exportToCSV, exportToJSON } from '@/services/export'
@@ -624,6 +625,7 @@ interface ResultsTableProps {
   onDeleteAddress?: (address: string) => void
   isMemoTab?: boolean
   memoSavedTime?: string
+  onOpenSnapshot?: () => void
 }
 
 export function ResultsTable({
@@ -638,6 +640,7 @@ export function ResultsTable({
   onDeleteAddress,
   isMemoTab = false,
   memoSavedTime = '',
+  onOpenSnapshot,
 }: ResultsTableProps) {
   const [sortField, setSortField]       = useState<SortField>('index')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
@@ -1226,6 +1229,18 @@ export function ResultsTable({
               </div>
             )}
           </div>
+
+          {/* 记录按钮 */}
+          {onOpenSnapshot && (
+            <button
+              onClick={onOpenSnapshot}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors shadow-sm md:gap-2 md:px-3 md:py-2 md:text-sm"
+              title="记录当前数据快照"
+            >
+              <ClipboardList className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              记录
+            </button>
+          )}
         </div>
       </div>
 

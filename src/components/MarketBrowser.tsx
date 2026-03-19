@@ -100,8 +100,9 @@ function timeRemaining(iso: string): { days: number; hours: number } {
   const now = new Date()
   const end = new Date(iso)
   const diffMs = Math.max(0, end.getTime() - now.getTime())
-  const totalHours = diffMs / 3600000
-  return { days: Math.ceil(diffMs / 86400000), hours: Math.max(1, Math.floor(totalHours)) }
+  const totalHours = Math.floor(diffMs / 3600000)
+  const days = Math.floor(diffMs / 86400000)
+  return { days, hours: Math.max(1, totalHours) }
 }
 
 /** 体育相关 tag slug 黑名单 */

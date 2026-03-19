@@ -257,6 +257,8 @@ async function getActivityStats(wallet, proxy) {
     if (!Array.isArray(batch) || batch.length === 0) break
 
     for (const item of batch) {
+      // 跳过 YIELD 类型的记录（持仓奖励/Rewards），不计入活跃天数
+      if (item.type === 'YIELD') continue
       const date = new Date(item.timestamp * 1000)
       const y = date.getFullYear()
       const mo = date.getMonth() + 1

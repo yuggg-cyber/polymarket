@@ -7,8 +7,9 @@ import { ResultsTable } from '@/components/ResultsTable'
 import { ProxySettings } from '@/components/ProxySettings'
 import { AddressExtractor } from '@/components/AddressExtractor'
 import { Drawer } from '@/components/ui/drawer'
-import { MarketBrowser, parseEventsToMarkets } from '@/components/MarketBrowser'
-import type { MarketItem, EventData } from '@/components/MarketBrowser'
+import { MarketBrowser, parseEventsToMarkets, DEFAULT_MARKET_UI_STATE } from '@/components/MarketBrowser'
+import type { MarketItem, EventData, MarketBrowserUIState } from '@/components/MarketBrowser'
+import { SnapshotRecorder } from '@/components/SnapshotRecorder'
 
 const STORAGE_KEY_PROXY = 'polymarket_proxy'
 const STORAGE_KEY_MEMO_RESULTS = 'polymarket_memo_results'
@@ -129,6 +130,7 @@ function App() {
   const [marketError, setMarketError] = useState<string | null>(null)
   const marketAbortRef = useRef<AbortController | null>(null)
   const marketDataLoaded = useRef(false)
+  const [marketUIState, setMarketUIState] = useState<MarketBrowserUIState>(DEFAULT_MARKET_UI_STATE)
 
   /** 获取市场数据 */
   const fetchMarketData = useCallback(async () => {
@@ -171,6 +173,7 @@ function App() {
   // 抽屉状态
   const [proxyDrawerOpen, setProxyDrawerOpen] = useState(false)
   const [extractDrawerOpen, setExtractDrawerOpen] = useState(false)
+  const [snapshotDrawerOpen, setSnapshotDrawerOpen] = useState(false)
 
   const handleProxyChange = useCallback((config: ProxyConfig) => {
     setProxyConfig(config)
@@ -599,6 +602,14 @@ function App() {
                 市场浏览
               </button>
             </div>
+            {pageMode === 'wallet' && (
+              <button
+                onClick={() => setSnapshotDrawerOpen(true)}
+                className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors md:px-4 md:py-2 md:text-sm"
+              >
+                记录
+              </button>
+            )}
             <button
               onClick={() => setExtractDrawerOpen(true)}
               className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors md:px-4 md:py-2 md:text-sm"
@@ -636,6 +647,18 @@ function App() {
         <ProxySettings
           proxyConfig={proxyConfig}
           onProxyChange={handleProxyChange}
+        />
+      </Drawer>
+
+      {/* 记录抽屉 */}
+      <Drawer
+        open={snapshotDrawerOpen}
+        onClose={() => setSnapshotDrawerOpen(false)}
+        title="记录"
+      >
+        <SnapshotRecorder
+          results={currentResults}
+          isLoading={currentProgress.isLoading}
         />
       </Drawer>
 
@@ -678,6 +701,8 @@ function App() {
           loading={marketLoading}
           error={marketError}
           onRefresh={fetchMarketData}
+          uiState={marketUIState}
+          onUIStateChange={setMarketUIState}
         />
       )}
     </div>

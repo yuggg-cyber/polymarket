@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import {
   ExternalLink,
   Search,
@@ -11,6 +11,7 @@ import {
   Filter,
   X,
   DollarSign,
+  Star,
 } from 'lucide-react'
 
 /* ============ 类型定义 ============ */
@@ -215,6 +216,52 @@ export function parseEventsToMarkets(events: EventData[]): MarketItem[] {
   return allMarkets
 }
 
+/* ============ 市场浏览器UI状态（提升到App层级以保持切换页面时的状态） ============ */
+
+export interface MarketBrowserUIState {
+  searchTerm: string
+  sortBy: 'endDate' | 'volume' | 'volume24hr' | 'yesPrice'
+  sortAsc: boolean
+  page: number
+  showSports: boolean
+  showCrypto: boolean
+  showWeather: boolean
+  showUpOrDown: boolean
+  minVolumeInput: string
+  showFavoritesOnly: boolean
+}
+
+export const DEFAULT_MARKET_UI_STATE: MarketBrowserUIState = {
+  searchTerm: '',
+  sortBy: 'volume',
+  sortAsc: false,
+  page: 1,
+  showSports: false,
+  showCrypto: false,
+  showWeather: true,
+  showUpOrDown: true,
+  minVolumeInput: '',
+  showFavoritesOnly: false,
+}
+
+/* ============ 收藏功能 localStorage ============ */
+
+const FAVORITES_STORAGE_KEY = 'polymarket_market_favorites'
+
+function loadFavorites(): Set<string> {
+  try {
+    const raw = localStorage.getItem(FAVORITES_STORAGE_KEY)
+    if (raw) return new Set(JSON.parse(raw))
+  } catch { /* ignore */ }
+  return new Set()
+}
+
+function saveFavorites(favs: Set<string>) {
+  try {
+    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([...favs]))
+  } catch { /* ignore */ }
+}
+
 /* ============ 主组件 ============ */
 
 interface MarketBrowserProps {
@@ -222,19 +269,39 @@ interface MarketBrowserProps {
   loading: boolean
   error: string | null
   onRefresh: () => void
+  uiState: MarketBrowserUIState
+  onUIStateChange: (state: MarketBrowserUIState) => void
 }
 
-export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrowserProps) {
+export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onUIStateChange }: MarketBrowserProps) {
   const tableRef = useRef<HTMLDivElement>(null)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [sortBy, setSortBy] = useState<'endDate' | 'volume' | 'volume24hr' | 'yesPrice'>('volume')
-  const [sortAsc, setSortAsc] = useState(false)
-  const [page, setPage] = useState(1)
-  const [showSports, setShowSports] = useState(false)
-  const [showCrypto, setShowCrypto] = useState(false)
-  const [showWeather, setShowWeather] = useState(true)
-  const [showUpOrDown, setShowUpOrDown] = useState(true)
-  const [minVolumeInput, setMinVolumeInput] = useState('')
+  const [favorites, setFavorites] = useState<Set<string>>(loadFavorites)
+
+  // 从 uiState 解构
+  const { searchTerm, sortBy, sortAsc, page, showSports, showCrypto, showWeather, showUpOrDown, minVolumeInput, showFavoritesOnly } = uiState
+
+  // 更新UI状态的辅助函数
+  const updateUI = useCallback((partial: Partial<MarketBrowserUIState>) => {
+    onUIStateChange({ ...uiState, ...partial })
+  }, [uiState, onUIStateChange])
+
+  // 收藏切换
+  const toggleFavorite = useCallback((marketId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    setFavorites(prev => {
+      const next = new Set(prev)
+      if (next.has(marketId)) {
+        next.delete(marketId)
+      } else {
+        next.add(marketId)
+      }
+      saveFavorites(next)
+      return next
+    })
+  }, [])
 
   const PAGE_SIZE = 30
 
@@ -243,6 +310,8 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
   /* ============ 过滤和排序 ============ */
 
   const filtered = markets.filter((m) => {
+    // 收藏过滤
+    if (showFavoritesOnly && !favorites.has(m.id)) return false
     // 体育过滤
     if (!showSports && isSportsEvent(m.tags)) return false
     // 加密价格预测过滤
@@ -289,12 +358,10 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
 
   const handleSort = (field: typeof sortBy) => {
     if (sortBy === field) {
-      setSortAsc(!sortAsc)
+      updateUI({ sortAsc: !sortAsc, page: 1 })
     } else {
-      setSortBy(field)
-      setSortAsc(false)
+      updateUI({ sortBy: field, sortAsc: false, page: 1 })
     }
-    setPage(1)
   }
 
   const scrollToTable = () => {
@@ -317,13 +384,26 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
   const weatherCount = markets.filter((m) => isWeatherEvent(m.tags, m.question)).length
   const upOrDownCount = markets.filter((m) => isUpOrDownEvent(m.question)).length
   const nonSportsCount = markets.length - sportsCount
+  const favoritesCount = markets.filter((m) => favorites.has(m.id)).length
 
   return (
     <div className="max-w-[1800px] mx-auto px-3 py-4 md:px-6 md:py-8">
       {/* 标题和统计 - 加载时隐藏 */}
       {!loading && (
       <div className="mb-4 md:mb-6">
-        <div className="flex items-center justify-end mb-3 md:mb-4">
+        <div className="flex items-center justify-end gap-2 mb-3 md:mb-4">
+          {/* 收藏筛选按钮 */}
+          <button
+            onClick={() => updateUI({ showFavoritesOnly: !showFavoritesOnly, page: 1 })}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors md:gap-2 md:px-4 md:py-2 md:text-sm ${
+              showFavoritesOnly
+                ? 'bg-amber-500 border-amber-500 text-white'
+                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <Star className={`w-3.5 h-3.5 md:w-4 md:h-4 ${showFavoritesOnly ? 'fill-current' : ''}`} />
+            {showFavoritesOnly ? `已收藏 (${favoritesCount})` : `收藏 (${favoritesCount})`}
+          </button>
           <button
             onClick={onRefresh}
             disabled={loading}
@@ -374,13 +454,13 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
               <input
                 type="text"
                 value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setPage(1) }}
+                onChange={(e) => { updateUI({ searchTerm: e.target.value, page: 1 }) }}
                 placeholder="搜索市场名称、事件、标签..."
                 className="w-full pl-10 pr-10 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent md:py-2.5"
               />
               {searchTerm && (
                 <button
-                  onClick={() => { setSearchTerm(''); setPage(1) }}
+                  onClick={() => { updateUI({ searchTerm: '', page: 1 }) }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   <X className="w-4 h-4" />
@@ -390,7 +470,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
 
             <div className="flex flex-wrap gap-1.5 md:gap-3">
               <button
-                onClick={() => { setShowSports(!showSports); setPage(1) }}
+                onClick={() => { updateUI({ showSports: !showSports, page: 1 }) }}
                 className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors md:gap-1.5 md:px-4 md:py-2.5 md:text-sm ${
                   !showSports
                     ? 'bg-blue-500 border-blue-500 text-white'
@@ -402,7 +482,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
               </button>
 
               <button
-                onClick={() => { setShowCrypto(!showCrypto); setPage(1) }}
+                onClick={() => { updateUI({ showCrypto: !showCrypto, page: 1 }) }}
                 className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors md:gap-1.5 md:px-4 md:py-2.5 md:text-sm ${
                   !showCrypto
                     ? 'bg-blue-500 border-blue-500 text-white'
@@ -414,7 +494,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
               </button>
 
               <button
-                onClick={() => { setShowWeather(!showWeather); setPage(1) }}
+                onClick={() => { updateUI({ showWeather: !showWeather, page: 1 }) }}
                 className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors md:gap-1.5 md:px-4 md:py-2.5 md:text-sm ${
                   !showWeather
                     ? 'bg-blue-500 border-blue-500 text-white'
@@ -426,7 +506,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
               </button>
 
               <button
-                onClick={() => { setShowUpOrDown(!showUpOrDown); setPage(1) }}
+                onClick={() => { updateUI({ showUpOrDown: !showUpOrDown, page: 1 }) }}
                 className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors md:gap-1.5 md:px-4 md:py-2.5 md:text-sm ${
                   !showUpOrDown
                     ? 'bg-blue-500 border-blue-500 text-white'
@@ -443,7 +523,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                 <input
                   type="text"
                   value={minVolumeInput}
-                  onChange={(e) => { setMinVolumeInput(e.target.value); setPage(1) }}
+                  onChange={(e) => { updateUI({ minVolumeInput: e.target.value, page: 1 }) }}
                   placeholder="最低交易量 如 200K"
                   className={`w-full pl-7 pr-7 py-1.5 text-xs rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent md:pl-9 md:pr-8 md:py-2.5 md:text-sm ${
                     minVolume > 0
@@ -453,7 +533,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                 />
                 {minVolumeInput && (
                   <button
-                    onClick={() => { setMinVolumeInput(''); setPage(1) }}
+                    onClick={() => { updateUI({ minVolumeInput: '', page: 1 }) }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -576,6 +656,9 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600 w-10">
+                      <Star className="w-4 h-4 inline text-gray-400" />
+                    </th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 w-12">#</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 min-w-[300px]">
                       预测市场
@@ -618,7 +701,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                 <tbody>
                   {paged.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-4 py-16 text-center text-gray-400">
+                      <td colSpan={10} className="px-4 py-16 text-center text-gray-400">
                         {searchTerm ? '没有找到匹配的市场' : '暂无数据'}
                       </td>
                     </tr>
@@ -637,6 +720,16 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                           key={m.id}
                           className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors"
                         >
+                          {/* 收藏 */}
+                          <td className="px-2 py-3.5 text-center">
+                            <button
+                              onClick={() => toggleFavorite(m.id)}
+                              className="p-1 rounded hover:bg-gray-100 transition-colors"
+                              title={favorites.has(m.id) ? '取消收藏' : '收藏'}
+                            >
+                              <Star className={`w-4 h-4 transition-colors ${favorites.has(m.id) ? 'text-amber-400 fill-amber-400' : 'text-gray-300 hover:text-amber-300'}`} />
+                            </button>
+                          </td>
                           {/* 序号 */}
                           <td className="px-4 py-3.5 text-sm text-gray-400 tabular-nums">
                             {rowNum}
@@ -815,15 +908,18 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                   const rowNum = (page - 1) * PAGE_SIZE + idx + 1
 
                   return (
-                    <a
+                    <div
                       key={m.id}
-                      href={`https://polymarket.com/event/${m.eventSlug || m.slug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
                       className="block px-3 py-3 active:bg-gray-50 transition-colors"
                     >
-                      {/* 顶部：图片 + 标题 */}
-                      <div className="flex items-start gap-2.5">
+                      {/* 顶部：收藏 + 图片 + 标题 */}
+                      <div className="flex items-start gap-2">
+                        <button
+                          onClick={() => toggleFavorite(m.id)}
+                          className="p-0.5 rounded mt-0.5 flex-shrink-0"
+                        >
+                          <Star className={`w-4 h-4 transition-colors ${favorites.has(m.id) ? 'text-amber-400 fill-amber-400' : 'text-gray-300'}`} />
+                        </button>
                         {m.image && (
                           <img
                             src={m.image}
@@ -832,16 +928,21 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                           />
                         )}
-                        <div className="flex-1 min-w-0">
+                        <a
+                          href={`https://polymarket.com/event/${m.eventSlug || m.slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 min-w-0"
+                        >
                           <div className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug">
                             <span className="text-xs text-gray-400 mr-1">{rowNum}.</span>
                             {m.question}
                           </div>
-                        </div>
+                        </a>
                       </div>
 
                       {/* 中部：YES/NO 胜率 + 交易量 */}
-                      <div className="flex items-center gap-3 mt-2 ml-[46px]">
+                      <div className="flex items-center gap-3 mt-2 ml-[30px]">
                         {/* YES */}
                         <div className="flex items-center gap-1">
                           <span className="text-xs text-gray-400">YES</span>
@@ -890,7 +991,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
 
                       {/* 底部：标签 */}
                       {m.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1.5 ml-[46px]">
+                        <div className="flex flex-wrap gap-1 mt-1.5 ml-[30px]">
                           {m.tags.slice(0, 2).map((t) => (
                             <span
                               key={t.id}
@@ -901,7 +1002,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                           ))}
                         </div>
                       )}
-                    </a>
+                    </div>
                   )
                 })
               )}
@@ -915,7 +1016,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                 </div>
                 <div className="flex items-center justify-center gap-1 md:gap-2">
                   <button
-                    onClick={() => { setPage(Math.max(1, page - 1)); scrollToTable() }}
+                    onClick={() => { updateUI({ page: Math.max(1, page - 1) }); scrollToTable() }}
                     disabled={page <= 1}
                     className="p-1 rounded-lg border border-gray-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors md:p-1.5"
                   >
@@ -937,7 +1038,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                     return (
                       <button
                         key={pageNum}
-                        onClick={() => { setPage(pageNum); scrollToTable() }}
+                        onClick={() => { updateUI({ page: pageNum }); scrollToTable() }}
                         className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors md:w-8 md:h-8 md:text-sm ${
                           page === pageNum
                             ? 'bg-blue-500 text-white'
@@ -949,7 +1050,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                     )
                   })}
                   <button
-                    onClick={() => { setPage(Math.min(totalPages, page + 1)); scrollToTable() }}
+                    onClick={() => { updateUI({ page: Math.min(totalPages, page + 1) }); scrollToTable() }}
                     disabled={page >= totalPages}
                     className="p-1 rounded-lg border border-gray-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors md:p-1.5"
                   >

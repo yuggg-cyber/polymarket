@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
   ExternalLink,
   Search,
@@ -225,6 +225,7 @@ interface MarketBrowserProps {
 }
 
 export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrowserProps) {
+  const tableRef = useRef<HTMLDivElement>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<'endDate' | 'volume' | 'volume24hr' | 'yesPrice'>('volume')
   const [sortAsc, setSortAsc] = useState(false)
@@ -294,6 +295,10 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
       setSortAsc(false)
     }
     setPage(1)
+  }
+
+  const scrollToTable = () => {
+    tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   const SortIcon = ({ field }: { field: typeof sortBy }) => {
@@ -545,7 +550,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
       {/* 市场表格 */}
       {!loading && !error && (
         <>
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div ref={tableRef} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -582,7 +587,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                       结束日期 <SortIcon field="endDate" />
                     </th>
                     <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600 min-w-[80px]">
-                      剩余天数
+                      剩余时间
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 min-w-[120px]">
                       标签
@@ -754,7 +759,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setPage(Math.max(1, page - 1))}
+                    onClick={() => { setPage(Math.max(1, page - 1)); scrollToTable() }}
                     disabled={page <= 1}
                     className="p-1.5 rounded-lg border border-gray-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
@@ -775,7 +780,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                     return (
                       <button
                         key={pageNum}
-                        onClick={() => setPage(pageNum)}
+                        onClick={() => { setPage(pageNum); scrollToTable() }}
                         className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
                           page === pageNum
                             ? 'bg-blue-500 text-white'
@@ -787,7 +792,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh }: MarketBrow
                     )
                   })}
                   <button
-                    onClick={() => setPage(Math.min(totalPages, page + 1))}
+                    onClick={() => { setPage(Math.min(totalPages, page + 1)); scrollToTable() }}
                     disabled={page >= totalPages}
                     className="p-1.5 rounded-lg border border-gray-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >

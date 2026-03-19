@@ -218,7 +218,7 @@ export function SearchSection({
     (activeTab === 'memo' && (isMemoOverLimit || !!memoError || memoParsedCount === 0))
 
   const addressTypeLabel = addressType === 'account' ? '账户地址' : 'Polymarket 地址'
-  const placeholderSuffix = addressType === 'account' ? '（支持 MetaMask 等账户地址）' : '（0x...）'
+  const placeholderSuffix = addressType === 'account' ? '（支持 MetaMask 等账户地址，自动识别关联的 Polymarket 钱包地址）' : '（0x...）'
 
   return (
     <div className="mx-auto w-full max-w-4xl">
@@ -274,11 +274,6 @@ export function SearchSection({
               账户地址
             </button>
           </div>
-          {addressType === 'account' && (
-            <span className="text-xs text-purple-500 md:ml-3 md:self-center">
-              将自动识别关联的 Polymarket 钱包地址
-            </span>
-          )}
         </div>
 
         <TabsContent value="single">

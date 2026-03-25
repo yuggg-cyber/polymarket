@@ -10,6 +10,7 @@ import { Drawer } from '@/components/ui/drawer'
 import { MarketBrowser, parseEventsToMarkets, DEFAULT_MARKET_UI_STATE } from '@/components/MarketBrowser'
 import type { MarketItem, EventData, MarketBrowserUIState } from '@/components/MarketBrowser'
 import { SnapshotRecorder } from '@/components/SnapshotRecorder'
+import { ScrollToTop } from '@/components/ScrollToTop'
 
 const STORAGE_KEY_PROXY = 'polymarket_proxy'
 const STORAGE_KEY_MEMO_RESULTS = 'polymarket_memo_results'
@@ -481,8 +482,79 @@ function App() {
     if (currentResults.length === 0) return
     const addresses = currentResults.map((r) => r.address)
     const isMemo = activeTab === 'memo'
-    await runQuery(addresses, activeTab, isMemo, 'polymarket')
-  }, [currentResults, activeTab, runQuery])
+    const setResults = getSetResultsForTab(activeTab)
+    const setProgress = getSetProgressForTab(activeTab)
+
+    // 将现有结果重置为 loading 状态（保留地址和 originalAddress），而不是清空
+    setResults((prev) =>
+      prev.map((r) => ({
+        address: r.address,
+        originalAddress: r.originalAddress,
+        profit: 0,
+        availableBalance: 0,
+        portfolioValue: 0,
+        netWorth: 0,
+        holdingPnl: 0,
+        totalVolume: 0,
+        marketsTraded: 0,
+        lastActiveDay: null,
+        activeDays: 0,
+        activeMonths: 0,
+        positions: [],
+        status: 'loading' as const,
+      }))
+    )
+    setProgress({ total: addresses.length, completed: 0, isLoading: true, failedCount: 0, startTime: Date.now() })
+
+    if (isMemo) isMemoQueryRef.current = true
+
+    // 直接发起查询，不经过 runQuery（避免 runQuery 内部的 setResults([]) 清空结果）
+    const concurrency = proxyConfig.enabled ? 8 : 3
+    const queue = createQueue(concurrency)
+
+    const tasks = addresses.map((addr, idx) =>
+      queue.add(async () => {
+        if (idx > 0) {
+          await sleep(REQUEST_DELAY_MS)
+        }
+        const data = await fetchWalletData(
+          addr,
+          proxyConfig.enabled ? proxyConfig : undefined
+        )
+        // 保留 originalAddress
+        const originalAddr = currentResults.find((r) => r.address === addr)?.originalAddress
+        if (originalAddr) {
+          data.originalAddress = originalAddr
+        }
+        const isFailed = data.status === 'error' || data.status === 'partial'
+        setProgress((prev) => ({
+          ...prev,
+          completed: prev.completed + 1,
+          currentAddress: addr,
+          failedCount: (prev.failedCount || 0) + (isFailed ? 1 : 0),
+        }))
+        setResults((prev) =>
+          prev.map((r) => (r.address === addr ? data : r))
+        )
+        return data
+      })
+    )
+
+    await Promise.allSettled(tasks)
+    setProgress((prev) => ({ ...prev, isLoading: false, currentAddress: undefined }))
+
+    // 如果是记忆查询，查询完成后自动保存
+    if (isMemo) {
+      setResults((prev) => {
+        const timeStr = new Date().toLocaleString('zh-CN')
+        saveToStorage(STORAGE_KEY_MEMO_RESULTS, prev)
+        saveToStorage(STORAGE_KEY_MEMO_TIME, timeStr)
+        setMemoSavedTime(timeStr)
+        return prev
+      })
+      isMemoQueryRef.current = false
+    }
+  }, [currentResults, activeTab, proxyConfig]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** 重试失败 */
   const handleRetryFailed = useCallback(async () => {
@@ -698,6 +770,8 @@ function App() {
           onUIStateChange={setMarketUIState}
         />
       )}
+      {/* 回到顶部悬浮按钮 */}
+      <ScrollToTop />
     </div>
   )
 }

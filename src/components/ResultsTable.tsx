@@ -29,6 +29,8 @@ import type { WalletData, Position, ClosedPosition, SortField, SortDirection } f
 import { exportToExcel, exportToCSV, exportToJSON } from '@/services/export'
 import { getClosedPositions } from '@/services/polymarket'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { ColorMarkMenu, loadRowColors, saveRowColors, getRowBgClass } from '@/components/ColorMarkMenu'
+import type { MarkColor } from '@/components/ColorMarkMenu'
 
 // ============================================================
 // 格式化工具
@@ -654,6 +656,28 @@ export function ResultsTable({
   const [visibleCols, setVisibleCols] = useState<Set<SortField>>(loadColVisibility)
   const [colMenuOpen, setColMenuOpen] = useState(false)
 
+  // 颜色标记状态
+  const [rowColors, setRowColors] = useState<Record<string, MarkColor>>(loadRowColors)
+  const [colorMenu, setColorMenu] = useState<{ x: number; y: number; address: string } | null>(null)
+
+  const handleColorSelect = (address: string, color: MarkColor | null) => {
+    setRowColors((prev) => {
+      const updated = { ...prev }
+      const key = address.toLowerCase()
+      if (color) {
+        updated[key] = color
+      } else {
+        delete updated[key]
+      }
+      saveRowColors(updated)
+      return updated
+    })
+  }
+
+  const getRowColor = (address: string): MarkColor | undefined => {
+    return rowColors[address.toLowerCase()]
+  }
+
   const toggleColVisibility = (field: SortField) => {
     setVisibleCols(prev => {
       const next = new Set(prev)
@@ -849,11 +873,20 @@ export function ResultsTable({
     const isPartialStatus = wallet.status === 'partial'
     const isDataReady = wallet.status === 'success' || wallet.status === 'partial'
     const walletNote = getNote(wallet.address)
+    const rowMarkColor = getRowColor(wallet.address)
+    const rowBgHex = getRowBgClass(rowMarkColor)
 
     rows.push(
       <tr
         key={wallet.address}
-        className={`border-b border-gray-100 hover:bg-gray-50/80 transition-colors ${isExpanded ? 'bg-blue-50/30' : ''} ${isSelected ? 'bg-blue-50/50' : ''} ${isPartialStatus ? 'bg-orange-50/30' : ''}`}
+        onContextMenu={(e) => {
+          if (isMemoTab) {
+            e.preventDefault()
+            setColorMenu({ x: e.clientX, y: e.clientY, address: wallet.address })
+          }
+        }}
+        className={`border-b border-gray-100 transition-colors ${!rowMarkColor ? 'hover:bg-gray-50/80' : ''} ${isExpanded && !rowMarkColor ? 'bg-blue-50/30' : ''} ${isSelected && !rowMarkColor ? 'bg-blue-50/50' : ''} ${isPartialStatus && !rowMarkColor ? 'bg-orange-50/30' : ''}`}
+        style={rowBgHex ? { backgroundColor: rowBgHex } : undefined}
       >
         {/* Checkbox */}
         <td className="w-10 px-2 py-3 text-center">
@@ -1329,6 +1362,18 @@ export function ResultsTable({
         }}
         onCancel={() => setShowClearConfirm(false)}
       />
+
+      {/* 右键颜色标记菜单（仅记忆查询模式） */}
+      {colorMenu && (
+        <ColorMarkMenu
+          x={colorMenu.x}
+          y={colorMenu.y}
+          address={colorMenu.address}
+          currentColor={getRowColor(colorMenu.address)}
+          onSelect={handleColorSelect}
+          onClose={() => setColorMenu(null)}
+        />
+      )}
     </div>
   )
 }

@@ -5,7 +5,9 @@ const LB_API = 'https://lb-api.polymarket.com'
 
 // Polymarket 使用的 USDC.e 合约地址 (Polygon PoS bridged)
 const USDC_CONTRACT = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
-const USDC_DECIMALS = 6
+// Polymarket pUSD 合约地址（2026年4月28日升级后的新抵押品代币）
+const PUSD_CONTRACT = '0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB'
+const TOKEN_DECIMALS = 6
 
 // Polygon RPC 端点列表（带 fallback）
 const POLYGON_RPCS = [
@@ -176,23 +178,31 @@ async function rpcEthCall(
   return null
 }
 
-async function getUSDCBalance(wallet: string): Promise<number> {
+async function getTokenBalance(wallet: string, contractAddress: string): Promise<number> {
   const addrHex = wallet.slice(2).toLowerCase()
   const data = '0x70a08231' + addrHex.padStart(64, '0')
   const payload = {
     jsonrpc: '2.0',
     id: 1,
     method: 'eth_call',
-    params: [{ to: USDC_CONTRACT, data }, 'latest'],
+    params: [{ to: contractAddress, data }, 'latest'],
   }
   const hex = await rpcEthCall(payload)
   if (!hex) throw new Error('All RPC endpoints failed')
   const raw = hex === '0x' ? 0n : BigInt(hex)
-  const scale = 10n ** BigInt(USDC_DECIMALS)
+  const scale = 10n ** BigInt(TOKEN_DECIMALS)
   const valueTimes100 = (raw * 100n) / scale
   const whole = Number(valueTimes100 / 100n)
   const cent = Number(valueTimes100 % 100n)
   return whole + cent / 100
+}
+
+async function getAvailableBalance(wallet: string): Promise<number> {
+  const [usdcBalance, pusdBalance] = await Promise.all([
+    getTokenBalance(wallet, USDC_CONTRACT),
+    getTokenBalance(wallet, PUSD_CONTRACT),
+  ])
+  return usdcBalance + pusdBalance
 }
 
 // ============================================================
@@ -404,7 +414,7 @@ async function fetchWalletDataDirect(address: string): Promise<WalletData> {
     getMarketsTraded(wallet).then(v => success(v)).catch((): SubOutcome<number> => failure('池子数')),
     getPortfolioValue(wallet).then(v => success(v)).catch((): SubOutcome<number> => failure('持仓估值')),
     getActivityStats(wallet).then(v => success(v)).catch((): SubOutcome<{ days: number; months: number; lastGap: number | null }> => failure('活跃度')),
-    getUSDCBalance(wallet).then(v => success(v)).catch((): SubOutcome<number> => failure('可用余额')),
+    getAvailableBalance(wallet).then(v => success(v)).catch((): SubOutcome<number> => failure('可用余额')),
     getPositions(wallet).then(v => success(v)).catch((): SubOutcome<PositionItem[]> => failure('持仓列表')),
   ])
 

@@ -179,6 +179,9 @@ function directPost(url, postBody, timeout = 8000) {
 const DATA_API = 'https://data-api.polymarket.com'
 const LB_API = 'https://lb-api.polymarket.com'
 const USDC_CONTRACT = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
+// Polymarket pUSD 合约地址（2026年4月28日升级后的新抵押品代币）
+const PUSD_CONTRACT = '0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB'
+const TOKEN_DECIMALS = 6
 const POLYGON_RPCS = [
   'https://polygon.drpc.org',
   'https://polygon.publicnode.com',
@@ -278,10 +281,10 @@ async function getActivityStats(wallet, proxy) {
   return { days: daysSet.size, months: monthsSet.size, lastGap: gap }
 }
 
-async function getUSDCBalance(wallet, proxy) {
+async function getTokenBalance(wallet, contractAddress, proxy) {
   const addrHex = wallet.slice(2).toLowerCase()
   const data = '0x70a08231' + addrHex.padStart(64, '0')
-  const payload = { jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: USDC_CONTRACT, data }, 'latest'] }
+  const payload = { jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: contractAddress, data }, 'latest'] }
 
   for (const rpc of POLYGON_RPCS) {
     try {
@@ -290,7 +293,7 @@ async function getUSDCBalance(wallet, proxy) {
       const result = j?.result
       if (typeof result === 'string' && result.startsWith('0x')) {
         const bigVal = result === '0x' ? 0n : BigInt(result)
-        const scale = 10n ** 6n
+        const scale = 10n ** BigInt(TOKEN_DECIMALS)
         const valueTimes100 = (bigVal * 100n) / scale
         const whole = Number(valueTimes100 / 100n)
         const cent = Number(valueTimes100 % 100n)
@@ -299,6 +302,14 @@ async function getUSDCBalance(wallet, proxy) {
     } catch (_e) { /* try next RPC */ }
   }
   throw new Error('All RPC endpoints failed')
+}
+
+async function getAvailableBalance(wallet, proxy) {
+  const [usdcBalance, pusdBalance] = await Promise.all([
+    getTokenBalance(wallet, USDC_CONTRACT, proxy),
+    getTokenBalance(wallet, PUSD_CONTRACT, proxy),
+  ])
+  return usdcBalance + pusdBalance
 }
 
 async function getPositions(wallet, proxy) {
@@ -367,7 +378,7 @@ export default async function handler(req, res) {
       wrapSub('池子数', () => getMarketsTraded(wallet, proxy)),
       wrapSub('持仓估值', () => getPortfolioValue(wallet, proxy)),
       wrapSub('活跃度', () => getActivityStats(wallet, proxy)),
-      wrapSub('可用余额', () => getUSDCBalance(wallet, proxy)),
+      wrapSub('可用余额', () => getAvailableBalance(wallet, proxy)),
       wrapSub('持仓列表', () => getPositions(wallet, proxy)),
       proxy ? wrapSub('代理IP', () => getProxyIP(proxy)) : Promise.resolve({ ok: true, value: null }),
     ])

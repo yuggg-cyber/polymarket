@@ -95,7 +95,7 @@ function SortIcon({ active, direction }: { active: boolean; direction: SortDirec
 
 const SORT_COLS: { field: SortField; label: string; tip: string }[] = [
   { field: 'netWorth',         label: '净资产',   tip: '净资产 = 可用余额 + 持仓估值' },
-  { field: 'availableBalance', label: '可用余额', tip: '链上 USDC.e 可用余额' },
+  { field: 'availableBalance', label: '可用余额', tip: '链上可用余额（USDC.e + pUSD）' },
   { field: 'portfolioValue',   label: '持仓估值', tip: '当前持仓估值（USD）' },
   { field: 'holdingPnl',       label: '持仓盈亏', tip: '当前持仓的浮动盈亏汇总（USD）' },
   { field: 'profit',           label: '总盈亏',   tip: '历史累计总盈亏（USD）' },
@@ -574,7 +574,7 @@ function SummaryCards({ results }: { results: WalletData[] }) {
 
   const cards: { label: string; value: string; sub: string; cls: string; highlight?: boolean }[] = [
     { label: '净资产总计', value: formatUSD(totalNetWorth),    sub: '可用 + 持仓', cls: 'text-gray-900' },
-    { label: '可用余额',   value: formatUSD(totalAvailable),  sub: 'USDC',       cls: 'text-gray-900' },
+    { label: '可用余额',   value: formatUSD(totalAvailable),  sub: 'USDC.e + pUSD',       cls: 'text-gray-900' },
     { label: '持仓估值',   value: formatUSD(totalHoldings),   sub: 'USD',        cls: 'text-gray-900' },
     { label: '持仓盈亏',   value: holdingPnlFmt.text,        sub: '当前持仓浮动', cls: holdingPnlFmt.className },
     { label: '总盈亏',     value: pnl.text,                  sub: '历史累计',   cls: pnl.className },

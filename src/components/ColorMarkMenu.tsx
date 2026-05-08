@@ -117,7 +117,7 @@ export function ColorMarkMenu({ x, y, addresses, currentColor, onSelect, onClose
           )}
         </button>
       ))}
-      {currentColor && (
+      {(currentColor || isBatch) && (
         <>
           <div className="border-t border-gray-100 my-1" />
           <button

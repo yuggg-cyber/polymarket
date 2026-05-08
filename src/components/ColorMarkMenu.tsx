@@ -41,13 +41,14 @@ export function getRowBgClass(color: MarkColor | undefined): string {
 interface ColorMarkMenuProps {
   x: number
   y: number
-  address: string
+  addresses: string[]
   currentColor?: MarkColor
-  onSelect: (address: string, color: MarkColor | null) => void
+  onSelect: (addresses: string[], color: MarkColor | null) => void
   onClose: () => void
 }
 
-export function ColorMarkMenu({ x, y, address, currentColor, onSelect, onClose }: ColorMarkMenuProps) {
+export function ColorMarkMenu({ x, y, addresses, currentColor, onSelect, onClose }: ColorMarkMenuProps) {
+  const isBatch = addresses.length > 1
   const menuRef = useRef<HTMLDivElement>(null)
   const [adjustedPos, setAdjustedPos] = useState({ x, y })
 
@@ -95,13 +96,13 @@ export function ColorMarkMenu({ x, y, address, currentColor, onSelect, onClose }
       style={{ left: adjustedPos.x, top: adjustedPos.y }}
     >
       <div className="px-3 py-1.5 text-xs text-gray-400 font-medium border-b border-gray-100 mb-1">
-        颜色标记
+        {isBatch ? `为 ${addresses.length} 个地址标记颜色` : '颜色标记'}
       </div>
       {MARK_COLORS.map((color) => (
         <button
           key={color.value}
           onClick={() => {
-            onSelect(address, color.value)
+            onSelect(addresses, color.value)
             onClose()
           }}
           className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
@@ -121,13 +122,13 @@ export function ColorMarkMenu({ x, y, address, currentColor, onSelect, onClose }
           <div className="border-t border-gray-100 my-1" />
           <button
             onClick={() => {
-              onSelect(address, null)
+              onSelect(addresses, null)
               onClose()
             }}
             className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
           >
             <span className="w-4 h-4 rounded-sm border border-dashed border-gray-300 flex-shrink-0" />
-            <span>取消标记</span>
+            <span>{isBatch ? '取消所有标记' : '取消标记'}</span>
           </button>
         </>
       )}

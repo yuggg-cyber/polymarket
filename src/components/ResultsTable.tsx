@@ -658,16 +658,18 @@ export function ResultsTable({
 
   // 颜色标记状态
   const [rowColors, setRowColors] = useState<Record<string, MarkColor>>(loadRowColors)
-  const [colorMenu, setColorMenu] = useState<{ x: number; y: number; address: string } | null>(null)
+  const [colorMenu, setColorMenu] = useState<{ x: number; y: number; addresses: string[] } | null>(null)
 
-  const handleColorSelect = (address: string, color: MarkColor | null) => {
+  const handleColorSelect = (addresses: string[], color: MarkColor | null) => {
     setRowColors((prev) => {
       const updated = { ...prev }
-      const key = address.toLowerCase()
-      if (color) {
-        updated[key] = color
-      } else {
-        delete updated[key]
+      for (const address of addresses) {
+        const key = address.toLowerCase()
+        if (color) {
+          updated[key] = color
+        } else {
+          delete updated[key]
+        }
       }
       saveRowColors(updated)
       return updated
@@ -882,7 +884,10 @@ export function ResultsTable({
         onContextMenu={(e) => {
           if (isMemoTab) {
             e.preventDefault()
-            setColorMenu({ x: e.clientX, y: e.clientY, address: wallet.address })
+            const addresses = selectedRows.has(wallet.address) && selectedRows.size > 1
+              ? Array.from(selectedRows)
+              : [wallet.address]
+            setColorMenu({ x: e.clientX, y: e.clientY, addresses })
           }
         }}
         className={`border-b border-gray-100 transition-colors ${!rowMarkColor ? 'hover:bg-gray-50/80' : ''} ${isExpanded && !rowMarkColor ? 'bg-blue-50/30' : ''} ${isSelected && !rowMarkColor ? 'bg-blue-50/50' : ''} ${isPartialStatus && !rowMarkColor ? 'bg-orange-50/30' : ''}`}
@@ -1368,8 +1373,8 @@ export function ResultsTable({
         <ColorMarkMenu
           x={colorMenu.x}
           y={colorMenu.y}
-          address={colorMenu.address}
-          currentColor={getRowColor(colorMenu.address)}
+          addresses={colorMenu.addresses}
+          currentColor={colorMenu.addresses.length === 1 ? getRowColor(colorMenu.addresses[0]) : undefined}
           onSelect={handleColorSelect}
           onClose={() => setColorMenu(null)}
         />

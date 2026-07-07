@@ -1,152 +1,88 @@
 // Vercel Serverless Function: market browser proxy
 // GET /api/markets?end_date_min=...&end_date_max=...
 //
-// Fetches markets directly with Gamma keyset pagination. The previous
-// events+offset fetch could stop at a fixed offset and miss low-volume markets
-// that still expire in the requested month.
+// Keep using Gamma events because the front end already consumes that shape.
+// The fix is to page past the old fixed offset cap instead of stopping at 5000.
 
 import https from 'node:https'
 import { URL, URLSearchParams } from 'node:url'
 
-export const GAMMA_MARKETS_KEYSET_URL = 'https://gamma-api.polymarket.com/markets/keyset'
-export const MARKET_PAGE_LIMIT = 100
-const MAX_KEYSET_PAGES = 1000
+export const GAMMA_EVENTS_URL = 'https://gamma-api.polymarket.com/events'
+export const EVENT_PAGE_LIMIT = 500
+export const EVENT_PAGE_BATCH_SIZE = 10
+export const MAX_EVENT_PAGES = 60
 
 function firstQueryValue(value) {
   return Array.isArray(value) ? value[0] : value
 }
 
-function toStringValue(value, fallback = '') {
-  if (value === undefined || value === null) return fallback
-  return String(value)
-}
-
-function toNumberValue(value, fallback = 0) {
-  if (value === undefined || value === null || value === '') return fallback
-  const num = Number(value)
-  return Number.isFinite(num) ? num : fallback
-}
-
-function asJSONList(value, fallback) {
-  if (typeof value === 'string') return value
-  if (Array.isArray(value)) return JSON.stringify(value)
-  return JSON.stringify(fallback)
-}
-
-function normalizeTags(tags) {
-  if (!Array.isArray(tags)) return []
-  return tags.map((tag) => ({
-    id: toStringValue(tag.id ?? tag.slug ?? tag.label),
-    label: toStringValue(tag.label ?? tag.name ?? tag.slug),
-    slug: toStringValue(tag.slug ?? tag.label ?? tag.name).toLowerCase(),
-  }))
-}
-
-export function buildMarketsUrl(query = {}, afterCursor = null) {
+export function buildEventsUrl(query = {}, offset = 0) {
   const params = new URLSearchParams({
+    active: 'true',
     closed: 'false',
-    limit: String(MARKET_PAGE_LIMIT),
-    order: 'volume_num',
+    order: 'volume',
     ascending: 'false',
-    include_tag: 'true',
+    limit: String(EVENT_PAGE_LIMIT),
+    offset: String(offset),
   })
 
   const endDateMin = firstQueryValue(query.end_date_min)
   const endDateMax = firstQueryValue(query.end_date_max)
   if (endDateMin) params.set('end_date_min', String(endDateMin))
   if (endDateMax) params.set('end_date_max', String(endDateMax))
-  if (afterCursor) params.set('after_cursor', afterCursor)
 
-  return `${GAMMA_MARKETS_KEYSET_URL}?${params.toString()}`
+  return `${GAMMA_EVENTS_URL}?${params.toString()}`
 }
 
-export function normalizeMarketToEvent(market) {
-  const event = Array.isArray(market.events) && market.events.length > 0
-    ? market.events[0]
-    : null
-  const tags = normalizeTags(market.tags?.length ? market.tags : event?.tags)
-
-  return {
-    id: toStringValue(event?.id ?? market.eventId ?? `market-${market.id}`),
-    title: toStringValue(event?.title ?? market.groupItemTitle ?? market.question),
-    slug: toStringValue(event?.slug ?? market.eventSlug ?? market.slug),
-    endDate: toStringValue(event?.endDate ?? market.endDate),
-    image: toStringValue(event?.image ?? market.image, undefined),
-    tags,
-    markets: [
-      {
-        id: toStringValue(market.id),
-        question: toStringValue(market.question),
-        slug: toStringValue(market.slug),
-        endDate: toStringValue(market.endDate),
-        image: toStringValue(market.image ?? event?.image, undefined),
-        outcomes: asJSONList(market.outcomes, ['Yes', 'No']),
-        outcomePrices: asJSONList(market.outcomePrices, [0, 0]),
-        volume: toStringValue(market.volume ?? market.volumeNum ?? market.volume_num, '0'),
-        volume24hr: toNumberValue(market.volume24hr ?? market.volume24hrClob),
-        liquidity: toNumberValue(market.liquidity ?? market.liquidityNum ?? market.liquidity_num),
-        liquidityNum: toNumberValue(market.liquidityNum ?? market.liquidity_num ?? market.liquidity),
-        description: toStringValue(market.description ?? event?.description),
-        active: market.active !== false,
-        closed: market.closed === true,
-      },
-    ],
-  }
-}
-
-export function marketsToEvents(markets) {
+function dedupeEvents(events) {
   const seen = new Set()
-  const events = []
+  const result = []
 
-  for (const market of markets) {
-    const id = toStringValue(market.id)
-    if (!id || seen.has(id)) continue
-    seen.add(id)
-    events.push(normalizeMarketToEvent(market))
+  for (const event of events) {
+    const id = event?.id === undefined || event?.id === null ? '' : String(event.id)
+    const key = id || event?.slug
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    result.push(event)
   }
 
-  return events
+  return result
 }
 
-export async function collectMarkets(query = {}, fetcher = fetchJSON) {
-  const markets = []
-  const seenMarketIds = new Set()
-  const seenCursors = new Set()
-  let afterCursor = null
+export async function collectEvents(query = {}, fetcher = fetchJSON) {
+  const allEvents = []
 
-  for (let page = 0; page < MAX_KEYSET_PAGES; page++) {
-    const payload = await fetcher(buildMarketsUrl(query, afterCursor))
-    const pageMarkets = Array.isArray(payload?.markets)
-      ? payload.markets
-      : Array.isArray(payload)
-        ? payload
-        : []
+  for (let pageStart = 0; pageStart < MAX_EVENT_PAGES; pageStart += EVENT_PAGE_BATCH_SIZE) {
+    const batchPages = Math.min(EVENT_PAGE_BATCH_SIZE, MAX_EVENT_PAGES - pageStart)
+    const offsets = Array.from(
+      { length: batchPages },
+      (_, index) => (pageStart + index) * EVENT_PAGE_LIMIT
+    )
 
-    for (const market of pageMarkets) {
-      const id = toStringValue(market.id)
-      if (id && !seenMarketIds.has(id)) {
-        seenMarketIds.add(id)
-        markets.push(market)
+    const results = await Promise.allSettled(
+      offsets.map((offset) => fetcher(buildEventsUrl(query, offset)))
+    )
+
+    let shouldStop = false
+
+    for (let index = 0; index < results.length; index++) {
+      const result = results[index]
+      if (result.status !== 'fulfilled' || !Array.isArray(result.value)) {
+        shouldStop = true
+        continue
+      }
+
+      allEvents.push(...result.value)
+
+      if (result.value.length < EVENT_PAGE_LIMIT) {
+        shouldStop = true
       }
     }
 
-    const nextCursor = typeof payload?.next_cursor === 'string' && payload.next_cursor
-      ? payload.next_cursor
-      : null
-
-    if (!nextCursor || pageMarkets.length === 0) {
-      return markets
-    }
-
-    if (seenCursors.has(nextCursor)) {
-      throw new Error('Gamma API returned a repeated pagination cursor')
-    }
-
-    seenCursors.add(nextCursor)
-    afterCursor = nextCursor
+    if (shouldStop) break
   }
 
-  throw new Error('Gamma API pagination exceeded the safety page limit')
+  return dedupeEvents(allEvents)
 }
 
 export function fetchJSON(targetUrl, timeout = 15000) {
@@ -216,8 +152,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const markets = await collectMarkets(req.query || {})
-    return res.status(200).json(marketsToEvents(markets))
+    const events = await collectEvents(req.query || {})
+    return res.status(200).json(events)
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Internal server error' })
   }

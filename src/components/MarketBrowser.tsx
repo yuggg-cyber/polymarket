@@ -16,74 +16,9 @@ import {
   Trash2,
 } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-
-/* ============ 类型定义 ============ */
-
-export interface MarketTag {
-  id: string
-  label: string
-  slug: string
-}
-
-export interface MarketItem {
-  id: string
-  question: string
-  slug: string
-  endDate: string
-  image?: string
-  outcomes: string[]
-  outcomePrices: number[]
-  volume: number
-  volume24hr: number
-  liquidity: number
-  description?: string
-  eventTitle?: string
-  eventSlug?: string
-  tags: MarketTag[]
-}
-
-export interface EventData {
-  id: string
-  title: string
-  slug: string
-  endDate: string
-  image?: string
-  tags: MarketTag[]
-  markets: {
-    id: string
-    question: string
-    slug: string
-    endDate: string
-    image?: string
-    outcomes: string
-    outcomePrices: string
-    volume: string
-    volume24hr?: number
-    liquidity?: number
-    liquidityNum?: number
-    description?: string
-    active: boolean
-    closed: boolean
-  }[]
-}
+import type { MarketBrowserUIState, MarketItem, MarketTag } from '@/components/market-browser-data'
 
 /* ============ 工具函数 ============ */
-
-function parseOutcomes(raw: string): string[] {
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return ['Yes', 'No']
-  }
-}
-
-function parsePrices(raw: string): number[] {
-  try {
-    return JSON.parse(raw).map(Number)
-  } catch {
-    return [0, 0]
-  }
-}
 
 function formatVolume(v: number): string {
   if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`
@@ -169,82 +104,10 @@ function parseVolumeInput(input: string): number {
   return num
 }
 
-/* ============ 解析函数（供外部使用） ============ */
-
-/** 获取本月最后一天 */
-function getMonthEnd() {
-  const now = new Date()
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
-  return end.toISOString()
-}
-
-/** 解析 API 返回的事件数据为 MarketItem 列表 */
-export function parseEventsToMarkets(events: EventData[]): MarketItem[] {
-  const endMax = getMonthEnd()
-  const allMarkets: MarketItem[] = []
-
-  for (const event of events) {
-    const eventTags = (event.tags || []) as MarketTag[]
-
-    for (const m of event.markets || []) {
-      if (!m.active || m.closed) continue
-
-      const mEnd = new Date(m.endDate)
-      const monthEnd = new Date(endMax)
-      const nowDate = new Date()
-      if (mEnd > monthEnd || mEnd < nowDate) continue
-
-      const outcomes = parseOutcomes(m.outcomes)
-      const prices = parsePrices(m.outcomePrices)
-
-      allMarkets.push({
-        id: m.id,
-        question: m.question,
-        slug: m.slug,
-        endDate: m.endDate,
-        image: m.image || event.image,
-        outcomes,
-        outcomePrices: prices,
-        volume: parseFloat(m.volume) || 0,
-        volume24hr: m.volume24hr || 0,
-        liquidity: m.liquidityNum || m.liquidity || 0,
-        description: m.description || '',
-        eventTitle: event.title,
-        eventSlug: event.slug,
-        tags: eventTags,
-      })
-    }
-  }
-
-  return allMarkets
-}
-
-/* ============ 市场浏览器UI状态（提升到App层级以保持切换页面时的状态） ============ */
-
-export interface MarketBrowserUIState {
-  searchTerm: string
-  sortBy: 'endDate' | 'volume' | 'volume24hr' | 'yesPrice'
-  sortAsc: boolean
-  page: number
-  showSports: boolean
-  showCrypto: boolean
-  showWeather: boolean
-  showUpOrDown: boolean
-  minVolumeInput: string
-  showFavoritesOnly: boolean
-}
-
-export const DEFAULT_MARKET_UI_STATE: MarketBrowserUIState = {
-  searchTerm: '',
-  sortBy: 'volume',
-  sortAsc: false,
-  page: 1,
-  showSports: false,
-  showCrypto: false,
-  showWeather: true,
-  showUpOrDown: true,
-  minVolumeInput: '',
-  showFavoritesOnly: false,
+function getLocalDateSortKey(iso: string): number {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return 0
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
 }
 
 /* ============ 收藏功能 localStorage ============ */
@@ -350,9 +213,11 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
   const sorted = [...filtered].sort((a, b) => {
     let cmp = 0
     switch (sortBy) {
-      case 'endDate':
-        cmp = new Date(a.endDate).getTime() - new Date(b.endDate).getTime()
-        break
+      case 'endDate': {
+        cmp = getLocalDateSortKey(a.endDate) - getLocalDateSortKey(b.endDate)
+        if (cmp !== 0) return sortAsc ? cmp : -cmp
+        return b.volume - a.volume
+      }
       case 'volume':
         cmp = a.volume - b.volume
         break
@@ -381,7 +246,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
     tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  const SortIcon = ({ field }: { field: typeof sortBy }) => {
+  const renderSortIcon = (field: typeof sortBy) => {
     if (sortBy !== field) return null
     return sortAsc ? (
       <TrendingUp className="w-3.5 h-3.5 inline ml-1" />
@@ -697,7 +562,7 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
                       className="px-4 py-3 text-center text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600 min-w-[120px]"
                       onClick={() => handleSort('yesPrice')}
                     >
-                      YES 胜率 <SortIcon field="yesPrice" />
+                      YES 胜率 {renderSortIcon('yesPrice')}
                     </th>
                     <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600 min-w-[120px]">
                       NO 胜率
@@ -706,19 +571,19 @@ export function MarketBrowser({ markets, loading, error, onRefresh, uiState, onU
                       className="px-4 py-3 text-right text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600 min-w-[100px]"
                       onClick={() => handleSort('volume')}
                     >
-                      总交易量 <SortIcon field="volume" />
+                      总交易量 {renderSortIcon('volume')}
                     </th>
                     <th
                       className="px-4 py-3 text-right text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600 min-w-[100px]"
                       onClick={() => handleSort('volume24hr')}
                     >
-                      24h交易量 <SortIcon field="volume24hr" />
+                      24h交易量 {renderSortIcon('volume24hr')}
                     </th>
                     <th
                       className="px-4 py-3 text-center text-sm font-semibold text-gray-600 cursor-pointer hover:text-blue-600 min-w-[110px]"
                       onClick={() => handleSort('endDate')}
                     >
-                      结束日期 <SortIcon field="endDate" />
+                      结束日期 {renderSortIcon('endDate')}
                     </th>
                     <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600 min-w-[80px]">
                       剩余时间

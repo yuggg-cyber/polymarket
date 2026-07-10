@@ -109,6 +109,8 @@ function randomSessionId(): string {
 const FETCH_TIMEOUT = 15000
 const RETRY_BASE_MS = 500
 const MAX_RETRIES = 3
+const MAX_PROXY_RETRIES = 5
+const PROXY_RETRY_DELAY_MS = 1000
 
 async function fetchWithTimeout(
   url: string,
@@ -382,11 +384,69 @@ function mapClosedPosition(item: ClosedPositionItem): ClosedPosition {
   }
 }
 
+async function fetchClosedPositionsPageViaProxy(
+  wallet: string,
+  offset: number,
+  proxy: ProxyConfig
+): Promise<ClosedPositionItem[]> {
+  const apiUrl = `${window.location.origin}/api/query`
+  let lastError: Error | null = null
+
+  for (let attempt = 0; attempt < MAX_PROXY_RETRIES; attempt++) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 60000)
+    const proxyUser = `${proxy.userPrefix}_session-${randomSessionId()}`
+
+    try {
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          action: 'closed-positions',
+          address: wallet,
+          offset,
+          proxyHost: proxy.host,
+          proxyPort: proxy.port,
+          proxyUser,
+          proxyPass: proxy.password,
+        }),
+      })
+
+      const responseBody = await res.text()
+      if (!res.ok) {
+        throw new Error(`API 返回 ${res.status}: ${responseBody}`)
+      }
+
+      const data = JSON.parse(responseBody) as { positions?: ClosedPositionItem[] }
+      if (!Array.isArray(data.positions)) {
+        throw new Error('代理返回的历史战绩格式无效')
+      }
+      return data.positions
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      if (attempt < MAX_PROXY_RETRIES - 1) {
+        await new Promise((resolve) => (
+          setTimeout(resolve, PROXY_RETRY_DELAY_MS * (attempt + 1))
+        ))
+      }
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  throw new Error(
+    `代理查询历史战绩失败（已重试 ${MAX_PROXY_RETRIES} 次）: ${lastError?.message ?? '未知错误'}`
+  )
+}
+
 export async function getClosedPositionsWithMeta(
   wallet: string,
-  options: ClosedPositionsOptions = {}
+  options: ClosedPositionsOptions = {},
+  proxyConfig?: ProxyConfig
 ): Promise<ClosedPositionsFetchResult> {
   const addr = wallet.toLowerCase()
+  const activeProxy = proxyConfig?.enabled && proxyConfig.host ? proxyConfig : undefined
   const all: ClosedPosition[] = []
   const maxPages = options.maxPages ?? MAX_CLOSED_PAGES
   let offset = 0
@@ -395,9 +455,11 @@ export async function getClosedPositionsWithMeta(
   let lastBatchWasFull = false
 
   while (pageCount < maxPages) {
-    const batch = await fetchJSON<ClosedPositionItem[]>(
-      `${DATA_API}/closed-positions?user=${addr}&limit=${CLOSED_POSITIONS_PAGE_SIZE}&offset=${offset}&sortBy=TIMESTAMP&sortDirection=DESC`
-    )
+    const batch = activeProxy
+      ? await fetchClosedPositionsPageViaProxy(addr, offset, activeProxy)
+      : await fetchJSON<ClosedPositionItem[]>(
+          `${DATA_API}/closed-positions?user=${addr}&limit=${CLOSED_POSITIONS_PAGE_SIZE}&offset=${offset}&sortBy=TIMESTAMP&sortDirection=DESC`
+        )
     if (!Array.isArray(batch) || batch.length === 0) break
 
     for (const item of batch) {
@@ -539,9 +601,6 @@ async function fetchWalletDataDirect(address: string): Promise<WalletData> {
 // ============================================================
 // 代理模式：通过 Vercel Serverless Function 查询
 // ============================================================
-
-const MAX_PROXY_RETRIES = 5
-const PROXY_RETRY_DELAY_MS = 1000
 
 async function fetchWalletDataViaProxy(
   address: string,

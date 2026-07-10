@@ -187,6 +187,8 @@ const POLYGON_RPCS = [
   'https://polygon.publicnode.com',
   'https://1rpc.io/matic',
 ]
+const CLOSED_POSITIONS_PAGE_SIZE = 50
+const MAX_CLOSED_POSITIONS_OFFSET = 100000
 
 function fetchGet(url, proxy) {
   if (proxy) {
@@ -317,6 +319,18 @@ async function getPositions(wallet, proxy) {
   return JSON.parse(raw)
 }
 
+export async function getClosedPositionsPage(wallet, offset, proxy, request = fetchGet) {
+  const raw = await request(
+    `${DATA_API}/closed-positions?user=${wallet}&limit=${CLOSED_POSITIONS_PAGE_SIZE}&offset=${offset}&sortBy=TIMESTAMP&sortDirection=DESC`,
+    proxy
+  )
+  const positions = JSON.parse(raw)
+  if (!Array.isArray(positions)) {
+    throw new Error('Invalid closed positions response')
+  }
+  return positions
+}
+
 // ============================================================
 // 子请求包装：追踪成功/失败
 // ============================================================
@@ -349,10 +363,22 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { address, proxyHost, proxyPort, proxyUser, proxyPass } = req.body
+    const {
+      action = 'wallet',
+      address,
+      offset = 0,
+      proxyHost,
+      proxyPort,
+      proxyUser,
+      proxyPass,
+    } = req.body
 
     if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
       return res.status(400).json({ error: 'Invalid address' })
+    }
+
+    if (action !== 'wallet' && action !== 'closed-positions') {
+      return res.status(400).json({ error: 'Invalid action' })
     }
 
     const wallet = address.toLowerCase()
@@ -361,6 +387,21 @@ export default async function handler(req, res) {
     const proxy = proxyHost
       ? { host: proxyHost, port: proxyPort, user: proxyUser, pass: proxyPass }
       : null
+
+    if (action === 'closed-positions') {
+      if (
+        typeof offset !== 'number' ||
+        !Number.isInteger(offset) ||
+        offset < 0 ||
+        offset > MAX_CLOSED_POSITIONS_OFFSET ||
+        offset % CLOSED_POSITIONS_PAGE_SIZE !== 0
+      ) {
+        return res.status(400).json({ error: 'Invalid offset' })
+      }
+
+      const positions = await getClosedPositionsPage(wallet, offset, proxy)
+      return res.status(200).json({ positions })
+    }
 
     // 并行获取所有数据，每个子请求独立追踪成功/失败
     const [

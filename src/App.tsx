@@ -738,6 +738,7 @@ function App() {
         <LossQueryDrawer
           currentResults={currentResults}
           addressType={addressType}
+          proxyConfig={proxyConfig}
         />
       </Drawer>
 

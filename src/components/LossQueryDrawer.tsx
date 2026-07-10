@@ -8,7 +8,7 @@ import {
   Search,
   TrendingDown,
 } from 'lucide-react'
-import type { AddressType, ClosedPosition, WalletData } from '@/types'
+import type { AddressType, ClosedPosition, ProxyConfig, WalletData } from '@/types'
 import { getClosedPositionsWithMeta, resolveAccountToPolymarket } from '@/services/polymarket'
 import { createQueue } from '@/services/queue'
 
@@ -24,6 +24,7 @@ type AddressStatusType = 'resolving' | 'loading' | 'success' | 'no-loss' | 'capp
 interface LossQueryDrawerProps {
   currentResults: WalletData[]
   addressType: AddressType
+  proxyConfig: ProxyConfig
 }
 
 interface MonthRange {
@@ -182,7 +183,7 @@ function getStatusText(status: AddressStatus) {
   return status.message || '查询失败'
 }
 
-export function LossQueryDrawer({ currentResults, addressType }: LossQueryDrawerProps) {
+export function LossQueryDrawer({ currentResults, addressType, proxyConfig }: LossQueryDrawerProps) {
   const [sourceMode, setSourceMode] = useState<SourceMode>('combined')
   const [manualAddressType, setManualAddressType] = useState<AddressType>(addressType)
   const [manualText, setManualText] = useState('')
@@ -199,6 +200,7 @@ export function LossQueryDrawer({ currentResults, addressType }: LossQueryDrawer
   }, [addressType])
 
   const currentAddresses = useMemo(() => getCurrentLossAddresses(currentResults), [currentResults])
+  const proxyActive = Boolean(proxyConfig.enabled && proxyConfig.host)
   const manualTokens = useMemo(() => parseAddressTokens(manualText), [manualText])
   const uniqueManualTokens = useMemo(() => {
     const seen = new Map<string, string>()
@@ -373,9 +375,12 @@ export function LossQueryDrawer({ currentResults, addressType }: LossQueryDrawer
     }
 
     const queue = createQueue(LOSS_QUERY_CONCURRENCY)
+    const transportCacheKey = proxyActive
+      ? ['proxy', proxyConfig.host, proxyConfig.port, proxyConfig.userPrefix, proxyConfig.password].join(':')
+      : 'direct'
     await Promise.allSettled(addresses.map((address) =>
       queue.add(async () => {
-        const cacheKey = `${address.key}:${monthValue}`
+        const cacheKey = `${address.key}:${monthValue}:${transportCacheKey}`
         let cached = cacheRef.current.get(cacheKey)
 
         try {
@@ -385,7 +390,7 @@ export function LossQueryDrawer({ currentResults, addressType }: LossQueryDrawer
             cached = await getClosedPositionsWithMeta(address.walletAddress, {
               maxPages: LOSS_QUERY_MAX_CLOSED_PAGES,
               stopBeforeTimestamp: range.startTs,
-            })
+            }, proxyConfig)
             cacheRef.current.set(cacheKey, cached)
           }
 
@@ -449,6 +454,9 @@ export function LossQueryDrawer({ currentResults, addressType }: LossQueryDrawer
           </div>
           <div className="mt-1.5 text-xs text-gray-400">
             当前可用地址 {currentAddresses.length} 个，手动输入 {uniqueManualTokens.length} 个
+            <span className={`ml-2 ${proxyActive ? 'text-green-600' : ''}`}>
+              {proxyActive ? '代理模式' : '直连模式'}
+            </span>
           </div>
         </div>
 

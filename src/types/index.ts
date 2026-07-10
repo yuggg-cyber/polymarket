@@ -1,5 +1,7 @@
 /** 已平仓位（历史战绩） */
 export interface ClosedPosition {
+  asset: string
+  conditionId: string
   title: string
   slug: string
   eventSlug: string
@@ -15,6 +17,8 @@ export interface ClosedPosition {
 
 /** 单个持仓仓位 */
 export interface Position {
+  asset: string
+  conditionId: string
   title: string
   slug: string
   eventSlug: string
@@ -22,6 +26,7 @@ export interface Position {
   outcome: string
   size: number
   avgPrice: number
+  initialValue: number
   currentValue: number
   curPrice: number
   cashPnl: number

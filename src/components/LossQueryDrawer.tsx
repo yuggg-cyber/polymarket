@@ -8,18 +8,24 @@ import {
   Search,
   TrendingDown,
 } from 'lucide-react'
-import type { AddressType, ClosedPosition, ProxyConfig, WalletData } from '@/types'
-import { getClosedPositionsWithMeta, resolveAccountToPolymarket } from '@/services/polymarket'
+import type { AddressType, ClosedPosition, Position, ProxyConfig, WalletData } from '@/types'
+import {
+  getClosedPositionsWithMeta,
+  getRedeemablePositionsWithMeta,
+  resolveAccountToPolymarket,
+} from '@/services/polymarket'
 import { createQueue } from '@/services/queue'
 
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/
 const MAX_MANUAL_ADDRESSES = 200
 const LOSS_QUERY_CONCURRENCY = 3
 const LOSS_QUERY_MAX_CLOSED_PAGES = 100
+const LOSS_QUERY_MAX_REDEEMABLE_PAGES = 20
 
 type SourceMode = 'current' | 'manual' | 'combined'
 type AddressSource = 'current' | 'manual'
-type AddressStatusType = 'resolving' | 'loading' | 'success' | 'no-loss' | 'capped' | 'error'
+type AddressStatusType = 'resolving' | 'loading' | 'success' | 'no-loss' | 'partial' | 'capped' | 'error'
+type LossRecordType = 'closed' | 'settled-current'
 
 interface LossQueryDrawerProps {
   currentResults: WalletData[]
@@ -51,6 +57,7 @@ interface AddressStatus {
   message?: string
   lossCount?: number
   closedCount?: number
+  currentCount?: number
 }
 
 interface LossRow {
@@ -58,7 +65,20 @@ interface LossRow {
   walletAddress: string
   originalAddress?: string
   source: AddressSource
-  position: ClosedPosition
+  recordType: LossRecordType
+  marketKey: string
+  title: string
+  slug: string
+  eventSlug: string
+  icon: string
+  outcome: string
+  lossAmount: number
+  boughtAmount: number
+  avgPrice: number
+  curPrice: number
+  recordTimestamp?: number
+  monthTimestamp: number
+  endDate: string
 }
 
 interface CachedClosedPositions {
@@ -115,7 +135,7 @@ function formatPrice(value: number) {
   return fixed.replace(/\.?0+$/, '')
 }
 
-function formatDate(timestamp: number) {
+function formatDate(timestamp?: number) {
   if (!timestamp) return '-'
   return new Date(timestamp * 1000).toLocaleDateString('zh-CN')
 }
@@ -125,8 +145,8 @@ function formatEndDate(endDate: string) {
   return new Date(endDate).toLocaleDateString('zh-CN')
 }
 
-function getMarketUrl(position: ClosedPosition) {
-  const slug = position.eventSlug || position.slug
+function getMarketUrl(row: LossRow) {
+  const slug = row.eventSlug || row.slug
   return slug ? `https://polymarket.com/event/${slug}` : undefined
 }
 
@@ -158,27 +178,103 @@ function addLossAddress(map: Map<string, LossAddress>, address: LossAddress) {
   }
 }
 
-function buildLossRows(address: LossAddress, positions: ClosedPosition[], range: MonthRange): LossRow[] {
+function getEndTimestamp(endDate: string): number | null {
+  const timestamp = new Date(endDate).getTime()
+  return Number.isFinite(timestamp) ? Math.floor(timestamp / 1000) : null
+}
+
+function isInMonth(timestamp: number, range: MonthRange) {
+  return timestamp >= range.startTs && timestamp < range.endTs
+}
+
+function isActuallyRedeemable(position: Position) {
+  if (!position.redeemable || position.currentValue <= 0) return false
+  if (position.currentValue >= 0.1) return true
+  if (position.totalBought > 0 && position.currentValue / position.totalBought < 0.01) return false
+  return true
+}
+
+function buildClosedLossRows(
+  address: LossAddress,
+  positions: ClosedPosition[],
+  range: MonthRange
+): LossRow[] {
   return positions
-    .filter((position) => (
-      position.timestamp >= range.startTs &&
-      position.timestamp < range.endTs &&
-      position.realizedPnl < 0
-    ))
-    .map((position, index) => ({
-      id: `${address.key}:${position.slug}:${position.outcome}:${position.timestamp}:${index}`,
+    .flatMap((position, index) => {
+      const monthTimestamp = getEndTimestamp(position.endDate) ?? position.timestamp
+      if (!isInMonth(monthTimestamp, range) || position.realizedPnl >= 0) return []
+
+      const marketKey = position.conditionId || position.eventSlug || position.slug || position.title
+      return [{
+        id: `${address.key}:closed:${position.asset || marketKey}:${position.timestamp}:${index}`,
+        walletAddress: address.walletAddress,
+        originalAddress: address.originalAddress,
+        source: address.source,
+        recordType: 'closed' as const,
+        marketKey,
+        title: position.title,
+        slug: position.slug,
+        eventSlug: position.eventSlug,
+        icon: position.icon,
+        outcome: position.outcome,
+        lossAmount: position.realizedPnl,
+        boughtAmount: position.totalBought,
+        avgPrice: position.avgPrice,
+        curPrice: position.curPrice,
+        recordTimestamp: position.timestamp,
+        monthTimestamp,
+        endDate: position.endDate,
+      }]
+    })
+}
+
+function buildSettledCurrentLossRows(
+  address: LossAddress,
+  positions: Position[],
+  range: MonthRange
+): LossRow[] {
+  return positions.flatMap((position, index) => {
+    const monthTimestamp = getEndTimestamp(position.endDate)
+    const isSettledLoss = (
+      position.redeemable &&
+      !isActuallyRedeemable(position) &&
+      position.cashPnl < 0
+    )
+    if (!monthTimestamp || !isInMonth(monthTimestamp, range) || !isSettledLoss) return []
+
+    const marketKey = position.conditionId || position.eventSlug || position.slug || position.title
+    const boughtAmount = position.initialValue > 0
+      ? position.initialValue
+      : position.size * position.avgPrice
+
+    return [{
+      id: `${address.key}:settled:${position.asset || marketKey}:${index}`,
       walletAddress: address.walletAddress,
       originalAddress: address.originalAddress,
       source: address.source,
-      position,
-    }))
+      recordType: 'settled-current' as const,
+      marketKey,
+      title: position.title,
+      slug: position.slug,
+      eventSlug: position.eventSlug,
+      icon: position.icon,
+      outcome: position.outcome,
+      lossAmount: position.cashPnl,
+      boughtAmount,
+      avgPrice: position.avgPrice,
+      curPrice: position.curPrice,
+      monthTimestamp,
+      endDate: position.endDate,
+    }]
+  })
 }
 
 function getStatusText(status: AddressStatus) {
   if (status.status === 'resolving') return '解析账户地址中'
-  if (status.status === 'loading') return '查询历史战绩中'
+  if (status.status === 'loading') return '查询仓位数据中'
   if (status.status === 'success') return `${status.lossCount || 0} 个亏损市场`
   if (status.status === 'no-loss') return '本月无亏损'
+  if (status.status === 'partial') return status.message || '部分仓位查询失败'
   if (status.status === 'capped') return `已到分页上限，已找到 ${status.lossCount || 0} 个亏损市场`
   return status.message || '查询失败'
 }
@@ -213,21 +309,26 @@ export function LossQueryDrawer({ currentResults, addressType, proxyConfig }: Lo
 
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
-      const lossDiff = Math.abs(b.position.realizedPnl) - Math.abs(a.position.realizedPnl)
+      const lossDiff = Math.abs(b.lossAmount) - Math.abs(a.lossAmount)
       if (lossDiff !== 0) return lossDiff
-      return b.position.timestamp - a.position.timestamp
+      return b.monthTimestamp - a.monthTimestamp
     })
   }, [rows])
 
   const summary = useMemo(() => {
-    const totalLoss = sortedRows.reduce((sum, row) => sum + Math.abs(row.position.realizedPnl), 0)
+    const totalLoss = sortedRows.reduce((sum, row) => sum + Math.abs(row.lossAmount), 0)
+    const lossMarkets = new Set(sortedRows.map((row) => (
+      `${row.walletAddress.toLowerCase()}:${row.marketKey}:${row.outcome}`
+    ))).size
     const lossAddresses = new Set(sortedRows.map((row) => row.walletAddress.toLowerCase())).size
-    const failedCount = statuses.filter((status) => status.status === 'error').length
+    const failedCount = statuses.filter((status) => (
+      status.status === 'error' || status.status === 'partial'
+    )).length
     const cappedCount = statuses.filter((status) => status.status === 'capped').length
 
     return {
       totalLoss,
-      lossCount: sortedRows.length,
+      lossCount: lossMarkets,
       checkedCount: statuses.filter((status) => status.status !== 'resolving').length,
       lossAddresses,
       failedCount,
@@ -380,32 +481,74 @@ export function LossQueryDrawer({ currentResults, addressType, proxyConfig }: Lo
       : 'direct'
     await Promise.allSettled(addresses.map((address) =>
       queue.add(async () => {
-        const cacheKey = `${address.key}:${monthValue}:${transportCacheKey}`
+        const cacheKey = `${address.key}:${transportCacheKey}`
         let cached = cacheRef.current.get(cacheKey)
 
         try {
-          updateStatus(address.key, { status: 'loading', message: '查询历史战绩中' })
+          updateStatus(address.key, { status: 'loading', message: '查询已平仓与已结算持仓中' })
 
-          if (!cached) {
-            cached = await getClosedPositionsWithMeta(address.walletAddress, {
-              maxPages: LOSS_QUERY_MAX_CLOSED_PAGES,
-              stopBeforeTimestamp: range.startTs,
-            }, proxyConfig)
+          const closedQuery = cached
+            ? Promise.resolve(cached)
+            : getClosedPositionsWithMeta(address.walletAddress, {
+                maxPages: LOSS_QUERY_MAX_CLOSED_PAGES,
+              }, proxyConfig)
+          const currentQuery = getRedeemablePositionsWithMeta(address.walletAddress, {
+            maxPages: LOSS_QUERY_MAX_REDEEMABLE_PAGES,
+          }, proxyConfig)
+          const [closedResult, currentResult] = await Promise.allSettled([
+            closedQuery,
+            currentQuery,
+          ])
+
+          if (closedResult.status === 'fulfilled' && !cached) {
+            cached = closedResult.value
             cacheRef.current.set(cacheKey, cached)
           }
 
-          const lossRows = buildLossRows(address, cached.positions, range)
+          if (closedResult.status === 'rejected' && currentResult.status === 'rejected') {
+            throw new Error('历史战绩和当前持仓查询均失败')
+          }
+
+          const closedPositions = closedResult.status === 'fulfilled'
+            ? closedResult.value.positions
+            : []
+          const currentPositions = currentResult.status === 'fulfilled'
+            ? currentResult.value.positions
+            : []
+          const lossRows = [
+            ...buildClosedLossRows(address, closedPositions, range),
+            ...buildSettledCurrentLossRows(address, currentPositions, range),
+          ]
           if (lossRows.length > 0) {
             setRows((prev) => [...prev, ...lossRows])
           }
 
+          const failedSources = [
+            ...(closedResult.status === 'rejected' ? ['历史战绩'] : []),
+            ...(currentResult.status === 'rejected' ? ['当前持仓'] : []),
+          ]
+          const cappedSources = [
+            ...(closedResult.status === 'fulfilled' && closedResult.value.reachedLimit ? ['历史战绩'] : []),
+            ...(currentResult.status === 'fulfilled' && currentResult.value.reachedLimit ? ['当前持仓'] : []),
+          ]
+          const status: AddressStatusType = cappedSources.length > 0
+            ? 'capped'
+            : failedSources.length > 0
+              ? 'partial'
+              : lossRows.length > 0
+                ? 'success'
+                : 'no-loss'
+
           updateStatus(address.key, {
-            status: cached.reachedLimit ? 'capped' : (lossRows.length > 0 ? 'success' : 'no-loss'),
+            status,
             lossCount: lossRows.length,
-            closedCount: cached.positions.length,
-            message: cached.reachedLimit
-              ? `已达到 ${LOSS_QUERY_MAX_CLOSED_PAGES * 50} 条历史战绩上限，较早记录可能未完全覆盖`
-              : undefined,
+            closedCount: closedPositions.length,
+            currentCount: currentPositions.length,
+            message: cappedSources.length > 0
+              ? `${cappedSources.join('、')}达到分页上限，记录可能未完全覆盖`
+              : failedSources.length > 0
+                ? `${failedSources.join('、')}查询失败，已显示其余可用结果`
+                : undefined,
           })
         } catch (error) {
           updateStatus(address.key, {
@@ -423,6 +566,7 @@ export function LossQueryDrawer({ currentResults, addressType, proxyConfig }: Lo
 
   const notableStatuses = statuses.filter((status) => (
     status.status === 'error' ||
+    status.status === 'partial' ||
     status.status === 'capped' ||
     status.status === 'no-loss'
   ))
@@ -462,7 +606,7 @@ export function LossQueryDrawer({ currentResults, addressType, proxyConfig }: Lo
 
         <div className="grid gap-3 md:grid-cols-[180px_1fr]">
           <label className="block">
-            <span className="text-xs font-medium text-gray-500 mb-1.5 block">自然月</span>
+            <span className="text-xs font-medium text-gray-500 mb-1.5 block">自然月（按截止日期）</span>
             <input
               type="month"
               value={monthValue}
@@ -574,7 +718,7 @@ export function LossQueryDrawer({ currentResults, addressType, proxyConfig }: Lo
                 <span className={
                   status.status === 'error'
                     ? 'text-red-500'
-                    : status.status === 'capped'
+                    : status.status === 'capped' || status.status === 'partial'
                       ? 'text-amber-600'
                       : 'text-gray-400'
                 }>
@@ -588,7 +732,7 @@ export function LossQueryDrawer({ currentResults, addressType, proxyConfig }: Lo
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] border-collapse">
+          <table className="w-full min-w-[1040px] border-collapse">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500">地址</th>
@@ -598,7 +742,7 @@ export function LossQueryDrawer({ currentResults, addressType, proxyConfig }: Lo
                 <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500">买入额</th>
                 <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500">均价</th>
                 <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500">结算价</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500">平仓时间</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500">记录时间</th>
                 <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500">截止日期</th>
               </tr>
             </thead>
@@ -624,7 +768,7 @@ export function LossQueryDrawer({ currentResults, addressType, proxyConfig }: Lo
               )}
 
               {sortedRows.map((row) => {
-                const url = getMarketUrl(row.position)
+                const url = getMarketUrl(row)
                 return (
                   <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="px-3 py-2.5 align-top">
@@ -654,47 +798,52 @@ export function LossQueryDrawer({ currentResults, addressType, proxyConfig }: Lo
                           rel="noopener noreferrer"
                           className="group flex max-w-[360px] items-start gap-2 text-sm text-gray-800 hover:text-blue-600"
                         >
-                          {row.position.icon && (
+                          {row.icon && (
                             <img
-                              src={row.position.icon}
+                              src={row.icon}
                               alt=""
                               className="mt-0.5 h-6 w-6 flex-shrink-0 rounded"
                               onError={(event) => { (event.target as HTMLImageElement).style.display = 'none' }}
                             />
                           )}
-                          <span className="line-clamp-2 group-hover:underline">{row.position.title}</span>
+                          <span className="line-clamp-2 group-hover:underline">{row.title}</span>
                           <ExternalLink className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-gray-300 group-hover:text-blue-500" />
                         </a>
                       ) : (
-                        <span className="text-sm text-gray-800">{row.position.title}</span>
+                        <span className="text-sm text-gray-800">{row.title}</span>
                       )}
+                      <div className={`mt-1 text-xs ${
+                        row.recordType === 'settled-current' ? 'text-red-400' : 'text-gray-400'
+                      }`}>
+                        {row.recordType === 'settled-current' ? '当前持仓 · 已结算' : '历史战绩'}
+                      </div>
                     </td>
                     <td className="px-3 py-2.5 align-top">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        row.position.outcome === 'Yes'
+                        row.outcome === 'Yes'
                           ? 'bg-emerald-100 text-emerald-700'
                           : 'bg-red-100 text-red-600'
                       }`}>
-                        {row.position.outcome}
+                        {row.outcome}
                       </span>
                     </td>
                     <td className="px-3 py-2.5 text-right align-top font-mono text-sm font-semibold text-red-500">
-                      -{formatUSD(row.position.realizedPnl)}
+                      -{formatUSD(row.lossAmount)}
                     </td>
                     <td className="px-3 py-2.5 text-right align-top font-mono text-sm text-gray-700">
-                      {formatUSD(row.position.totalBought)}
+                      {formatUSD(row.boughtAmount)}
                     </td>
                     <td className="px-3 py-2.5 text-right align-top font-mono text-sm text-gray-700">
-                      ${formatPrice(row.position.avgPrice)}
+                      ${formatPrice(row.avgPrice)}
                     </td>
                     <td className="px-3 py-2.5 text-right align-top font-mono text-sm text-gray-700">
-                      ${formatPrice(row.position.curPrice)}
+                      ${formatPrice(row.curPrice)}
                     </td>
                     <td className="px-3 py-2.5 text-right align-top text-sm text-gray-500">
-                      {formatDate(row.position.timestamp)}
+                      {row.recordTimestamp ? formatDate(row.recordTimestamp) : '未转历史'}
                     </td>
                     <td className="px-3 py-2.5 text-right align-top text-sm text-gray-500">
-                      {formatEndDate(row.position.endDate)}
+                      {formatEndDate(row.endDate)}
                     </td>
                   </tr>
                 )

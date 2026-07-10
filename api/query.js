@@ -189,6 +189,8 @@ const POLYGON_RPCS = [
 ]
 const CLOSED_POSITIONS_PAGE_SIZE = 50
 const MAX_CLOSED_POSITIONS_OFFSET = 100000
+const REDEEMABLE_POSITIONS_PAGE_SIZE = 500
+const MAX_REDEEMABLE_POSITIONS_OFFSET = 10000
 
 function fetchGet(url, proxy) {
   if (proxy) {
@@ -315,8 +317,15 @@ async function getAvailableBalance(wallet, proxy) {
 }
 
 async function getPositions(wallet, proxy) {
-  const raw = await fetchGet(`${DATA_API}/positions?user=${wallet}&sizeThreshold=0`, proxy)
-  return JSON.parse(raw)
+  const raw = await fetchGet(
+    `${DATA_API}/positions?user=${wallet}&sizeThreshold=0&limit=500&offset=0&sortBy=TOKENS&sortDirection=DESC`,
+    proxy
+  )
+  const positions = JSON.parse(raw)
+  if (!Array.isArray(positions)) {
+    throw new Error('Invalid positions response')
+  }
+  return positions
 }
 
 export async function getClosedPositionsPage(wallet, offset, proxy, request = fetchGet) {
@@ -327,6 +336,18 @@ export async function getClosedPositionsPage(wallet, offset, proxy, request = fe
   const positions = JSON.parse(raw)
   if (!Array.isArray(positions)) {
     throw new Error('Invalid closed positions response')
+  }
+  return positions
+}
+
+export async function getRedeemablePositionsPage(wallet, offset, proxy, request = fetchGet) {
+  const raw = await request(
+    `${DATA_API}/positions?user=${wallet}&sizeThreshold=0&redeemable=true&limit=${REDEEMABLE_POSITIONS_PAGE_SIZE}&offset=${offset}&sortBy=TOKENS&sortDirection=DESC`,
+    proxy
+  )
+  const positions = JSON.parse(raw)
+  if (!Array.isArray(positions)) {
+    throw new Error('Invalid redeemable positions response')
   }
   return positions
 }
@@ -377,7 +398,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid address' })
     }
 
-    if (action !== 'wallet' && action !== 'closed-positions') {
+    if (action !== 'wallet' && action !== 'closed-positions' && action !== 'redeemable-positions') {
       return res.status(400).json({ error: 'Invalid action' })
     }
 
@@ -400,6 +421,21 @@ export default async function handler(req, res) {
       }
 
       const positions = await getClosedPositionsPage(wallet, offset, proxy)
+      return res.status(200).json({ positions })
+    }
+
+    if (action === 'redeemable-positions') {
+      if (
+        typeof offset !== 'number' ||
+        !Number.isInteger(offset) ||
+        offset < 0 ||
+        offset > MAX_REDEEMABLE_POSITIONS_OFFSET ||
+        offset % REDEEMABLE_POSITIONS_PAGE_SIZE !== 0
+      ) {
+        return res.status(400).json({ error: 'Invalid offset' })
+      }
+
+      const positions = await getRedeemablePositionsPage(wallet, offset, proxy)
       return res.status(200).json({ positions })
     }
 
@@ -458,6 +494,8 @@ export default async function handler(req, res) {
       : 0
 
     const positions = (openPositions || []).map((p) => ({
+      asset: p.asset,
+      conditionId: p.conditionId,
       title: p.title,
       slug: p.slug,
       eventSlug: p.eventSlug || '',
@@ -465,6 +503,7 @@ export default async function handler(req, res) {
       outcome: p.outcome,
       size: p.size,
       avgPrice: p.avgPrice,
+      initialValue: p.initialValue,
       currentValue: p.currentValue,
       curPrice: p.curPrice,
       cashPnl: p.cashPnl,

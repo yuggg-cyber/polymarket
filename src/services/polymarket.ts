@@ -330,7 +330,7 @@ async function getActivityStats(
 
 async function getPositions(wallet: string): Promise<PositionItem[]> {
   return await fetchJSON<PositionItem[]>(
-    `${DATA_API}/positions?user=${wallet}&sizeThreshold=0`
+    `${DATA_API}/positions?user=${wallet}&sizeThreshold=0&limit=500&offset=0&sortBy=TOKENS&sortDirection=DESC`
   )
 }
 
@@ -357,6 +357,8 @@ interface ClosedPositionItem {
 
 const CLOSED_POSITIONS_PAGE_SIZE = 50
 const MAX_CLOSED_PAGES = 20
+const REDEEMABLE_POSITIONS_PAGE_SIZE = 500
+const MAX_REDEEMABLE_POSITION_PAGES = 20
 
 interface ClosedPositionsOptions {
   maxPages?: number
@@ -368,8 +370,19 @@ export interface ClosedPositionsFetchResult {
   reachedLimit: boolean
 }
 
+interface RedeemablePositionsOptions {
+  maxPages?: number
+}
+
+export interface RedeemablePositionsFetchResult {
+  positions: Position[]
+  reachedLimit: boolean
+}
+
 function mapClosedPosition(item: ClosedPositionItem): ClosedPosition {
   return {
+    asset: item.asset,
+    conditionId: item.conditionId,
     title: item.title,
     slug: item.slug,
     eventSlug: item.eventSlug || '',
@@ -384,11 +397,38 @@ function mapClosedPosition(item: ClosedPositionItem): ClosedPosition {
   }
 }
 
-async function fetchClosedPositionsPageViaProxy(
+function mapPosition(item: PositionItem): Position {
+  return {
+    asset: item.asset,
+    conditionId: item.conditionId,
+    title: item.title,
+    slug: item.slug,
+    eventSlug: item.eventSlug || '',
+    icon: item.icon,
+    outcome: item.outcome,
+    size: item.size,
+    avgPrice: item.avgPrice,
+    initialValue: item.initialValue,
+    currentValue: item.currentValue,
+    curPrice: item.curPrice,
+    cashPnl: item.cashPnl,
+    percentPnl: item.percentPnl,
+    totalBought: item.totalBought,
+    realizedPnl: item.realizedPnl,
+    redeemable: item.redeemable,
+    mergeable: item.mergeable,
+    endDate: item.endDate,
+  }
+}
+
+type PositionPageAction = 'closed-positions' | 'redeemable-positions'
+
+async function fetchPositionPageViaProxy<T>(
+  action: PositionPageAction,
   wallet: string,
   offset: number,
   proxy: ProxyConfig
-): Promise<ClosedPositionItem[]> {
+): Promise<T[]> {
   const apiUrl = `${window.location.origin}/api/query`
   let lastError: Error | null = null
 
@@ -403,7 +443,7 @@ async function fetchClosedPositionsPageViaProxy(
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
-          action: 'closed-positions',
+          action,
           address: wallet,
           offset,
           proxyHost: proxy.host,
@@ -418,9 +458,9 @@ async function fetchClosedPositionsPageViaProxy(
         throw new Error(`API 返回 ${res.status}: ${responseBody}`)
       }
 
-      const data = JSON.parse(responseBody) as { positions?: ClosedPositionItem[] }
+      const data = JSON.parse(responseBody) as { positions?: T[] }
       if (!Array.isArray(data.positions)) {
-        throw new Error('代理返回的历史战绩格式无效')
+        throw new Error('代理返回的仓位数据格式无效')
       }
       return data.positions
     } catch (error) {
@@ -436,7 +476,7 @@ async function fetchClosedPositionsPageViaProxy(
   }
 
   throw new Error(
-    `代理查询历史战绩失败（已重试 ${MAX_PROXY_RETRIES} 次）: ${lastError?.message ?? '未知错误'}`
+    `代理查询仓位数据失败（已重试 ${MAX_PROXY_RETRIES} 次）: ${lastError?.message ?? '未知错误'}`
   )
 }
 
@@ -456,7 +496,7 @@ export async function getClosedPositionsWithMeta(
 
   while (pageCount < maxPages) {
     const batch = activeProxy
-      ? await fetchClosedPositionsPageViaProxy(addr, offset, activeProxy)
+      ? await fetchPositionPageViaProxy<ClosedPositionItem>('closed-positions', addr, offset, activeProxy)
       : await fetchJSON<ClosedPositionItem[]>(
           `${DATA_API}/closed-positions?user=${addr}&limit=${CLOSED_POSITIONS_PAGE_SIZE}&offset=${offset}&sortBy=TIMESTAMP&sortDirection=DESC`
         )
@@ -482,6 +522,43 @@ export async function getClosedPositionsWithMeta(
   return {
     positions: all,
     reachedLimit: pageCount >= maxPages && lastBatchWasFull && !stoppedByTime,
+  }
+}
+
+export async function getRedeemablePositionsWithMeta(
+  wallet: string,
+  options: RedeemablePositionsOptions = {},
+  proxyConfig?: ProxyConfig
+): Promise<RedeemablePositionsFetchResult> {
+  const addr = wallet.toLowerCase()
+  const activeProxy = proxyConfig?.enabled && proxyConfig.host ? proxyConfig : undefined
+  const all: Position[] = []
+  const maxPages = options.maxPages ?? MAX_REDEEMABLE_POSITION_PAGES
+  let offset = 0
+  let pageCount = 0
+  let lastBatchWasFull = false
+
+  while (pageCount < maxPages) {
+    const batch = activeProxy
+      ? await fetchPositionPageViaProxy<PositionItem>('redeemable-positions', addr, offset, activeProxy)
+      : await fetchJSON<PositionItem[]>(
+          `${DATA_API}/positions?user=${addr}&sizeThreshold=0&redeemable=true&limit=${REDEEMABLE_POSITIONS_PAGE_SIZE}&offset=${offset}&sortBy=TOKENS&sortDirection=DESC`
+        )
+    if (!Array.isArray(batch) || batch.length === 0) break
+
+    for (const item of batch) {
+      all.push(mapPosition(item))
+    }
+
+    pageCount++
+    lastBatchWasFull = batch.length === REDEEMABLE_POSITIONS_PAGE_SIZE
+    if (batch.length < REDEEMABLE_POSITIONS_PAGE_SIZE) break
+    offset += REDEEMABLE_POSITIONS_PAGE_SIZE
+  }
+
+  return {
+    positions: all,
+    reachedLimit: pageCount >= maxPages && lastBatchWasFull,
   }
 }
 
@@ -533,24 +610,7 @@ async function fetchWalletDataDirect(address: string): Promise<WalletData> {
 
   const netWorth = availableBalance + portfolioValue
 
-  const positions: Position[] = openPositions.map((p) => ({
-    title: p.title,
-    slug: p.slug,
-    eventSlug: p.eventSlug || '',
-    icon: p.icon,
-    outcome: p.outcome,
-    size: p.size,
-    avgPrice: p.avgPrice,
-    currentValue: p.currentValue,
-    curPrice: p.curPrice,
-    cashPnl: p.cashPnl,
-    percentPnl: p.percentPnl,
-    totalBought: p.totalBought,
-    realizedPnl: p.realizedPnl,
-    redeemable: p.redeemable,
-    mergeable: p.mergeable,
-    endDate: p.endDate,
-  }))
+  const positions: Position[] = openPositions.map(mapPosition)
 
   // 持仓盈亏：只汇总"持有中"和"真正可赎回"仓位的浮动盈亏（排除已结算灰尘残留和可合并仓位）
   const holdingPnl = positionsResult.ok

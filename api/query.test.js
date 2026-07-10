@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { getClosedPositionsPage } from './query.js'
+import { getClosedPositionsPage, getRedeemablePositionsPage } from './query.js'
 
 test('closed positions page request forwards the configured proxy', async () => {
   const wallet = '0x1234567890abcdef1234567890abcdef12345678'
@@ -37,5 +37,42 @@ test('closed positions page rejects malformed API data', async () => {
       async () => JSON.stringify({ error: 'rate limited' })
     ),
     /Invalid closed positions response/
+  )
+})
+
+test('redeemable positions page forwards the configured proxy', async () => {
+  const wallet = '0x1234567890abcdef1234567890abcdef12345678'
+  const proxy = {
+    host: 'proxy.example.com',
+    port: '8080',
+    user: 'user_session-test',
+    pass: 'secret',
+  }
+  let requestedUrl = ''
+  let requestedProxy = null
+
+  const positions = await getRedeemablePositionsPage(wallet, 500, proxy, async (url, forwardedProxy) => {
+    requestedUrl = url
+    requestedProxy = forwardedProxy
+    return JSON.stringify([{ title: 'settled current market', redeemable: true }])
+  })
+
+  assert.equal(
+    requestedUrl,
+    `https://data-api.polymarket.com/positions?user=${wallet}&sizeThreshold=0&redeemable=true&limit=500&offset=500&sortBy=TOKENS&sortDirection=DESC`
+  )
+  assert.equal(requestedProxy, proxy)
+  assert.deepEqual(positions, [{ title: 'settled current market', redeemable: true }])
+})
+
+test('redeemable positions page rejects malformed API data', async () => {
+  await assert.rejects(
+    getRedeemablePositionsPage(
+      '0x1234567890abcdef1234567890abcdef12345678',
+      0,
+      null,
+      async () => JSON.stringify({ error: 'rate limited' })
+    ),
+    /Invalid redeemable positions response/
   )
 })

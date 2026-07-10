@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { TrendingDown } from 'lucide-react'
 import type { WalletData, QueryProgress, ProxyConfig, AddressType } from '@/types'
 import { fetchWalletData, resolveAccountToPolymarket } from '@/services/polymarket'
 import { createQueue } from '@/services/queue'
@@ -6,6 +7,7 @@ import { SearchSection } from '@/components/SearchSection'
 import { ResultsTable } from '@/components/ResultsTable'
 import { ProxySettings } from '@/components/ProxySettings'
 import { AddressExtractor } from '@/components/AddressExtractor'
+import { LossQueryDrawer } from '@/components/LossQueryDrawer'
 import { Drawer } from '@/components/ui/drawer'
 import { MarketBrowser } from '@/components/MarketBrowser'
 import { DEFAULT_MARKET_UI_STATE, parseEventsToMarkets } from '@/components/market-browser-data'
@@ -176,6 +178,7 @@ function App() {
   const [proxyDrawerOpen, setProxyDrawerOpen] = useState(false)
   const [extractDrawerOpen, setExtractDrawerOpen] = useState(false)
   const [snapshotDrawerOpen, setSnapshotDrawerOpen] = useState(false)
+  const [lossDrawerOpen, setLossDrawerOpen] = useState(false)
 
   const handleProxyChange = useCallback((config: ProxyConfig) => {
     setProxyConfig(config)
@@ -681,6 +684,16 @@ function App() {
             >
               地址提取
             </button>
+            {pageMode === 'wallet' && (
+              <button
+                onClick={() => setLossDrawerOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors md:px-3 md:py-2 md:text-sm"
+                title="亏损查询"
+              >
+                <TrendingDown className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <span className="hidden sm:inline">亏损</span>
+              </button>
+            )}
             <button
               onClick={() => setProxyDrawerOpen(true)}
               className="relative px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors md:px-4 md:py-2 md:text-sm"
@@ -712,6 +725,19 @@ function App() {
         <ProxySettings
           proxyConfig={proxyConfig}
           onProxyChange={handleProxyChange}
+        />
+      </Drawer>
+
+      {/* 亏损查询抽屉 */}
+      <Drawer
+        open={lossDrawerOpen}
+        onClose={() => setLossDrawerOpen(false)}
+        title="亏损查询"
+        className="max-w-5xl"
+      >
+        <LossQueryDrawer
+          currentResults={currentResults}
+          addressType={addressType}
         />
       </Drawer>
 

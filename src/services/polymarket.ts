@@ -356,40 +356,76 @@ interface ClosedPositionItem {
 const CLOSED_POSITIONS_PAGE_SIZE = 50
 const MAX_CLOSED_PAGES = 20
 
-export async function getClosedPositions(wallet: string): Promise<ClosedPosition[]> {
+interface ClosedPositionsOptions {
+  maxPages?: number
+  stopBeforeTimestamp?: number
+}
+
+export interface ClosedPositionsFetchResult {
+  positions: ClosedPosition[]
+  reachedLimit: boolean
+}
+
+function mapClosedPosition(item: ClosedPositionItem): ClosedPosition {
+  return {
+    title: item.title,
+    slug: item.slug,
+    eventSlug: item.eventSlug || '',
+    icon: item.icon,
+    outcome: item.outcome,
+    avgPrice: item.avgPrice,
+    curPrice: item.curPrice,
+    totalBought: item.totalBought,
+    realizedPnl: item.realizedPnl,
+    timestamp: item.timestamp,
+    endDate: item.endDate,
+  }
+}
+
+export async function getClosedPositionsWithMeta(
+  wallet: string,
+  options: ClosedPositionsOptions = {}
+): Promise<ClosedPositionsFetchResult> {
   const addr = wallet.toLowerCase()
   const all: ClosedPosition[] = []
+  const maxPages = options.maxPages ?? MAX_CLOSED_PAGES
   let offset = 0
   let pageCount = 0
+  let stoppedByTime = false
+  let lastBatchWasFull = false
 
-  while (pageCount < MAX_CLOSED_PAGES) {
+  while (pageCount < maxPages) {
     const batch = await fetchJSON<ClosedPositionItem[]>(
       `${DATA_API}/closed-positions?user=${addr}&limit=${CLOSED_POSITIONS_PAGE_SIZE}&offset=${offset}&sortBy=TIMESTAMP&sortDirection=DESC`
     )
     if (!Array.isArray(batch) || batch.length === 0) break
 
     for (const item of batch) {
-      all.push({
-        title: item.title,
-        slug: item.slug,
-        eventSlug: item.eventSlug || '',
-        icon: item.icon,
-        outcome: item.outcome,
-        avgPrice: item.avgPrice,
-        curPrice: item.curPrice,
-        totalBought: item.totalBought,
-        realizedPnl: item.realizedPnl,
-        timestamp: item.timestamp,
-        endDate: item.endDate,
-      })
+      all.push(mapClosedPosition(item))
     }
 
+    pageCount++
+    lastBatchWasFull = batch.length === CLOSED_POSITIONS_PAGE_SIZE
+    if (
+      typeof options.stopBeforeTimestamp === 'number' &&
+      batch.some((item) => item.timestamp < options.stopBeforeTimestamp!)
+    ) {
+      stoppedByTime = true
+      break
+    }
     if (batch.length < CLOSED_POSITIONS_PAGE_SIZE) break
     offset += CLOSED_POSITIONS_PAGE_SIZE
-    pageCount++
   }
 
-  return all
+  return {
+    positions: all,
+    reachedLimit: pageCount >= maxPages && lastBatchWasFull && !stoppedByTime,
+  }
+}
+
+export async function getClosedPositions(wallet: string): Promise<ClosedPosition[]> {
+  const result = await getClosedPositionsWithMeta(wallet)
+  return result.positions
 }
 
 // ============================================================

@@ -804,6 +804,14 @@ export function ResultsTable({
   const okCount = results.filter((r) => r.status === 'success').length
   const partialCount = results.filter((r) => r.status === 'partial').length
   const errorCount = results.filter((r) => r.status === 'error').length
+  const markedCount = useMemo(() => {
+    const markedAddresses = new Set<string>()
+    for (const result of results) {
+      const address = result.address.toLowerCase()
+      if (rowColors[address]) markedAddresses.add(address)
+    }
+    return markedAddresses.size
+  }, [results, rowColors])
   const retryableCount = errorCount + partialCount
 
   // 导出相关
@@ -1114,6 +1122,7 @@ export function ResultsTable({
             {errorCount > 0 && (
               <span className="text-red-500 ml-1">，失败 {errorCount} 个</span>
             )}
+            <span className="ml-1">，标记地址 {markedCount} 个</span>
           </span>
           {/* 记忆查询保存时间提示 */}
           {isMemoTab && memoSavedTime && !isLoading && (
